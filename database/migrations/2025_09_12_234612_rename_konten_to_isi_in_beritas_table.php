@@ -1,0 +1,24 @@
+<?php
+
+    use Illuminate\Database\Migrations\Migration;
+    use Illuminate\Database\Schema\Blueprint;
+    use Illuminate\Support\Facades\Schema;
+
+    return new class extends Migration
+    {
+        public function up(): void
+        {
+            Schema::table('beritas', function (Blueprint $table) {
+                // Perintah untuk mengubah nama kolom 'konten' menjadi 'isi'
+                $table->renameColumn('konten', 'isi');
+            });
+        }
+
+        public function down(): void
+        {
+            Schema::table('beritas', function (Blueprint $table) {
+                // Perintah untuk mengembalikan jika migrasi di-rollback
+                $table->renameColumn('isi', 'konten');
+            });
+        }
+    };
