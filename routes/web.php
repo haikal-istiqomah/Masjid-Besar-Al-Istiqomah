@@ -6,6 +6,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BeritaController;
 use App\Http\Controllers\TransaksiController;
 use App\Http\Controllers\LaporanController;
+use App\Http\Controllers\MidtransController;
 use App\Http\Controllers\Admin\DonasiController as AdminDonasiController;
 
 /*
@@ -50,7 +51,10 @@ Route::middleware('auth')->group(function () {
     });
 
     // Rute untuk menerima notifikasi dari Midtrans (Webhook)
-    Route::post('/midtrans/notification', [App\Http\Controllers\MidtransController::class, 'notificationHandler'])->name('midtrans.notification');
+    Route::post('/midtrans/notification', [MidtransController::class, 'notification'])->name('midtrans.notification');
+
+    Route::get('/kalkulator-zakat', [\App\Http\Controllers\ZakatController::class, 'index'])->name('zakat.index');
+    Route::post('/kalkulator-zakat/hitung', [\App\Http\Controllers\ZakatController::class, 'hitung'])->name('zakat.hitung');
 });
 
 require __DIR__.'/auth.php';

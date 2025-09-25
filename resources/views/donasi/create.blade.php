@@ -62,6 +62,18 @@
                             Lanjutkan Pembayaran
                         </button>
                     </form>
+                    @if(session('snap_token'))
+                    <script src="https://app.sandbox.midtrans.com/snap/snap.js"
+                            data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+                    <script>
+                      window.snap.pay(@json(session('snap_token')), {
+                        onSuccess:  function(result){ console.log('success', result); },
+                        onPending:  function(result){ console.log('pending', result); },
+                        onError:    function(result){ console.log('error', result); },
+                        onClose:    function(){ console.log('closed'); }
+                      });
+                    </script>
+                @endif
                 </div>
             </div>
         </div>

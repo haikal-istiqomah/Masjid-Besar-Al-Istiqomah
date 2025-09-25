@@ -1,68 +1,77 @@
 <?php
+// app/Http/Controllers/MidtransController.php
 
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Donasi;
+use Illuminate\Support\Facades\Log;
 use Midtrans\Config;
 use Midtrans\Notification;
-use Illuminate\Support\Facades\Log; // <-- PENTING: Tambahkan ini untuk logging
+use App\Models\Donasi;    // sementara pakai model Donasi milikmu
+use App\Models\Payment;   // opsional: jika sudah mulai migrasi ke payments
 
 class MidtransController extends Controller
 {
-    public function notificationHandler(Request $request)
+    public function notification(Request $request)
     {
-        // 1. Catat semua notifikasi yang masuk ke dalam file log
-        Log::info('Webhook dari Midtrans diterima.', $request->all());
+        Log::info('midtrans.notification payload', $request->all());
 
-        // 2. Atur Server Key Midtrans
-        Config::$serverKey = config('midtrans.server_key');
-        Config::$isProduction = config('midtrans.is_production');
+        // BACA DARI services.midtrans
+        Config::$serverKey    = config('services.midtrans.server_key');
+        Config::$isProduction = (bool) config('services.midtrans.is_production');
+        Config::$isSanitized  = true;
+        Config::$is3ds        = true;
 
         try {
-            // 3. Buat instance notifikasi dari input server Midtrans
-            $notification = new Notification();
+            $notif = new Notification();
 
-            // 4. Ambil detail penting dari notifikasi
-            $transactionStatus = $notification->transaction_status;
-            $fraudStatus = $notification->fraud_status;
-            $orderId = $notification->order_id;
+            $orderId     = $notif->order_id;
+            $trxStatus   = $notif->transaction_status; // settlement|capture|pending|expire|cancel|deny|refund|chargeback
+            $fraudStatus = $notif->fraud_status;       // accept|challenge|deny
 
-            Log::info("Mencari donasi dengan Order ID: {$orderId}");
+            // ====== Opsi A: SEMENTARA update ke tabel Donasi lamamu ======
+            if ($donasi = Donasi::where('order_id', $orderId)->first()) {
+                $new = match ($trxStatus) {
+                    'capture', 'settlement' => ($fraudStatus === 'accept') ? 'Success' : $donasi->status,
+                    'pending'               => 'Pending',
+                    'deny', 'expire', 'cancel' => 'Failed',
+                    'refund'                => 'Refunded',
+                    default                 => $donasi->status,
+                };
 
-            // 5. Cari donasi berdasarkan order_id
-            $donasi = Donasi::where('order_id', $orderId)->first();
-
-            // 6. Lakukan update HANYA jika donasi ditemukan
-            if ($donasi) {
-                Log::info("Donasi ditemukan. Status saat ini: {$donasi->status}");
-                
-                // Lakukan update HANYA jika statusnya masih 'Pending'
-                if ($donasi->status == 'Pending') {
-                    if ($transactionStatus == 'capture' || $transactionStatus == 'settlement') {
-                        if ($fraudStatus == 'accept') {
-                            Log::info("Transaksi settlement/capture dan fraud accept. Mengubah status menjadi 'Success'.");
-                            $donasi->update(['status' => 'Success']);
-                        }
-                    } else if ($transactionStatus == 'deny' || $transactionStatus == 'expire' || $transactionStatus == 'cancel') {
-                        Log::info("Transaksi gagal/dibatalkan. Mengubah status menjadi 'Failed'.");
-                        $donasi->update(['status' => 'Failed']);
-                    }
-                } else {
-                    Log::info("Status donasi bukan 'Pending', pembaruan dilewati.");
+                // Idempoten: hanya update jika berubah
+                if ($donasi->status !== $new) {
+                    $donasi->update(['status' => $new]);
                 }
-            } else {
-                Log::warning("Donasi dengan Order ID: {$orderId} tidak ditemukan di database.");
             }
 
-            // 7. Beri respons '200 OK' ke Midtrans
-            return response()->json(['message' => 'Notification handled successfully'], 200);
+            // ====== Opsi B: Jika sudah pakai tabel payments ======
+            if ($payment = Payment::where('order_id', $orderId)->first()) {
+                $map = [
+                    'capture'    => 'paid',
+                    'settlement' => 'paid',
+                    'pending'    => 'pending',
+                    'deny'       => 'failed',
+                    'expire'     => 'expired',
+                    'cancel'     => 'canceled',
+                    'refund'     => 'refunded',
+                    'chargeback' => 'chargeback',
+                ];
+                $new = $map[$trxStatus] ?? $payment->status;
 
-        } catch (\Exception $e) {
-            // Catat error jika terjadi
-            Log::error('Error saat memproses webhook Midtrans: ' . $e->getMessage());
+                if ($payment->status !== $new) {
+                    $payment->update([
+                        'status' => $new,
+                        'paid_at' => in_array($new, ['paid','refunded']) ? now() : $payment->paid_at,
+                        'raw_notification' => $request->all(),
+                    ]);
+                }
+            }
+
+            return response()->json(['ok' => true], 200);
+        } catch (\Throwable $e) {
+            Log::error('midtrans.notification error: '.$e->getMessage());
             return response()->json(['error' => 'Internal Server Error'], 500);
         }
     }
 }
-

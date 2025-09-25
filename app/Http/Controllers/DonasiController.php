@@ -21,11 +21,11 @@ class DonasiController extends Controller
 
         // 2. Buat record baru di database
         Donasi::create([
-            'order_id' => 'DONASI-' . uniqid(), // Membuat ID unik untuk donasi
-            'nama_donatur' => $request->nama_donatur,
-            'jumlah' => $request->jumlah,
-            'pesan' => $request->pesan,
-            'status' => 'unpaid', // Status awal, karena belum dibayar
+           'order_id'    => 'DONASI-' . uniqid(),
+           'nama_donatur'=> $request->nama_donatur,
+           'jumlah'      => $request->jumlah,
+           'pesan'       => $request->pesan,
+           'status'      => 'Pending', // <— ganti dari 'unpaid' // Status awal, karena belum dibayar
         ]);
 
         // 3. Arahkan kembali ke halaman utama dengan pesan sukses
