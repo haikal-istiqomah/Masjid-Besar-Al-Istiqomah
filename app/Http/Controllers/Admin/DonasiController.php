@@ -2,45 +2,43 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Exports\DonasiExport;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Donasi;
-use Maatwebsite\Excel\Facades\Excel; // <-- Tambahan penting
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DonasiController extends Controller
 {
-    /**
-     * Menampilkan halaman laporan donasi dengan filter.
-     */
     public function index(Request $request)
     {
-        $query = Donasi::query();
+        $q = Donasi::query()->latest();
 
-        if ($request->filled('tanggal_mulai') && $request->filled('tanggal_akhir')) {
-            $tanggalMulai = $request->tanggal_mulai;
-            $tanggalAkhir = $request->tanggal_akhir;
-            $query->whereBetween('created_at', [$tanggalMulai . ' 00:00:00', $tanggalAkhir . ' 23:59:59']);
+        if ($request->filled('status')) {
+            $q->where('status', $request->status);
+        }
+        if ($request->filled('payment_type')) {
+            $q->where('payment_type', $request->payment_type);
         }
 
-        $semuaDonasi = $query->latest()->get();
+        $daftar_donasi = $q->paginate(20)->withQueryString();
 
-        return view('admin.donasi.laporan', [
-            'daftar_donasi' => $semuaDonasi
-        ]);
+        return view('admin.donasi.laporan', compact('daftar_donasi'));
     }
 
-    /**
-     * ======================================================
-     * == FUNGSI BARU UNTUK MENANGANI EKSPOR DATA KE EXCEL ==
-     * ======================================================
-     */
-    public function exportExcel(Request $request)
+    public function setStatus(Request $request, Donasi $donasi)
     {
-        $namaFile = 'laporan_donasi_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
-        
-        // Kirim $request ke DonasiExport agar filter tanggal ikut terbawa
-        return Excel::download(new DonasiExport($request), $namaFile);
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['pending','success','failed','expired','refunded'])],
+        ]);
+
+        // (opsional) batasi manual hanya untuk transfer manual:
+        // if ($donasi->payment_type !== 'manual_transfer') {
+        //     return back()->with('err', 'Hanya donasi transfer manual yang bisa diubah manual.');
+        // }
+
+        $donasi->status = $data['status'];
+        $donasi->save();
+
+        return back()->with('ok', 'Status donasi diperbarui.');
     }
 }
-

@@ -21,5 +21,6 @@ class Donasi extends Model
         'jumlah',
         'pesan',
         'status', // Meskipun status diatur otomatis, kita izinkan untuk update nanti
+        'payment_type',
     ];
 }

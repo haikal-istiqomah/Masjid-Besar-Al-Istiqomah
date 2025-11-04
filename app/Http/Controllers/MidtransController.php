@@ -1,77 +1,113 @@
 <?php
-// app/Http/Controllers/MidtransController.php
 
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Midtrans\Config;
-use Midtrans\Notification;
-use App\Models\Donasi;    // sementara pakai model Donasi milikmu
-use App\Models\Payment;   // opsional: jika sudah mulai migrasi ke payments
+use App\Models\Donasi;
+use App\Models\Payment;
 
 class MidtransController extends Controller
 {
     public function notification(Request $request)
     {
-        Log::info('midtrans.notification payload', $request->all());
+        Log::info('midtrans.notification payload: ' . json_encode($request->all()));
 
-        // BACA DARI services.midtrans
-        Config::$serverKey    = config('services.midtrans.server_key');
-        Config::$isProduction = (bool) config('services.midtrans.is_production');
-        Config::$isSanitized  = true;
-        Config::$is3ds        = true;
+        // Ambil field penting dari payload
+        $orderId      = (string) $request->input('order_id');
+        $statusCode   = (string) $request->input('status_code');        // '201', '200', dst.
+        $grossAmount  = (string) $request->input('gross_amount');       // "15000.00"
+        $trxStatus    = (string) $request->input('transaction_status'); // pending|settlement|...
+        $fraudStatus  = (string) $request->input('fraud_status');       // accept|challenge|deny
+        $ptype        = (string) $request->input('payment_type');       // echannel, bank_transfer, cc, etc.
+        $sigFromMid   = (string) $request->input('signature_key');
+
+        // Validasi signature
+        $serverKey = (string) config('services.midtrans.server_key');
+        $expected  = hash('sha512', $orderId.$statusCode.$grossAmount.$serverKey);
+        if (!hash_equals($expected, $sigFromMid)) {
+            Log::warning('midtrans.notification invalid signature for order '.$orderId);
+            return response('Invalid signature', 403);
+        }
+
+        // Map status Midtrans -> status internal (lowercase)
+        $mappedPayment = match ($trxStatus) {
+            'capture'    => ($ptype === 'credit_card' && $fraudStatus === 'challenge') ? 'challenge' : 'paid',
+            'settlement' => 'paid',
+            'pending'    => 'pending',
+            'deny'       => 'failed',
+            'expire'     => 'expired',
+            'cancel'     => 'canceled',
+            'refund'     => 'refunded',
+            'chargeback' => 'chargeback',
+            default      => 'pending'
+        };
+
+        // Untuk tabel Donasi legacy: gunakan lowercase yang umum
+        $mappedDonasi = match ($trxStatus) {
+            'capture', 'settlement' => ($fraudStatus === 'accept') ? 'success' : 'pending', // aman: 'success' atau 'pending'
+            'pending'               => 'pending',
+            'deny'                  => 'failed',
+            'expire'                => 'expired',
+            'cancel'                => 'failed',   // kalau constraintmu hanya izinkan 'failed'
+            'refund'                => 'refunded',
+            default                 => 'pending',
+        };
 
         try {
-            $notif = new Notification();
-
-            $orderId     = $notif->order_id;
-            $trxStatus   = $notif->transaction_status; // settlement|capture|pending|expire|cancel|deny|refund|chargeback
-            $fraudStatus = $notif->fraud_status;       // accept|challenge|deny
-
-            // ====== Opsi A: SEMENTARA update ke tabel Donasi lamamu ======
+            // ===== Donasi (jika ada barisnya) =====
             if ($donasi = Donasi::where('order_id', $orderId)->first()) {
-                $new = match ($trxStatus) {
-                    'capture', 'settlement' => ($fraudStatus === 'accept') ? 'Success' : $donasi->status,
-                    'pending'               => 'Pending',
-                    'deny', 'expire', 'cancel' => 'Failed',
-                    'refund'                => 'Refunded',
-                    default                 => $donasi->status,
-                };
-
-                // Idempoten: hanya update jika berubah
-                if ($donasi->status !== $new) {
-                    $donasi->update(['status' => $new]);
+                $needSave = false;
+            
+                // status (lowercase, sesuai constraint)
+                if ($donasi->status !== $mappedDonasi) {
+                    $donasi->status = $mappedDonasi;
+                    $needSave = true;
+                }
+            
+                // simpan payment_type bila ada/berubah
+                if ($ptype && $donasi->payment_type !== $ptype) {
+                    $donasi->payment_type = $ptype;
+                    $needSave = true;
+                }
+            
+                if ($needSave) {
+                    $donasi->save();  // assignment + save => aman
                 }
             }
 
-            // ====== Opsi B: Jika sudah pakai tabel payments ======
+            // ===== Payments (jika ada barisnya) =====
             if ($payment = Payment::where('order_id', $orderId)->first()) {
-                $map = [
-                    'capture'    => 'paid',
-                    'settlement' => 'paid',
-                    'pending'    => 'pending',
-                    'deny'       => 'failed',
-                    'expire'     => 'expired',
-                    'cancel'     => 'canceled',
-                    'refund'     => 'refunded',
-                    'chargeback' => 'chargeback',
-                ];
-                $new = $map[$trxStatus] ?? $payment->status;
-
-                if ($payment->status !== $new) {
-                    $payment->update([
-                        'status' => $new,
-                        'paid_at' => in_array($new, ['paid','refunded']) ? now() : $payment->paid_at,
-                        'raw_notification' => $request->all(),
-                    ]);
+                    // 1) Validasi amount (Midtrans kirim string "15000.00")
+                    $midtransAmount = (int) round((float) $grossAmount);   // 15000.00 -> 15000
+                    $localAmount    = (int) round((float) $payment->amount);
+                
+                    if ($localAmount !== $midtransAmount) {
+                        Log::warning("midtrans.notification amount mismatch for $orderId | local={$localAmount} midtrans={$midtransAmount}");
+                        return response('Amount mismatch', 400);
+                    }
+                
+                    // 2) Update status/channel/raw
+                    if ($payment->status !== $mappedPayment) {
+                        $payment->status = $mappedPayment;
+                        $payment->channel = $ptype;
+                        if (in_array($mappedPayment, ['paid','refunded']) && !$payment->paid_at) {
+                            $payment->paid_at = now();
+                        }
+                        $payment->raw_notification = $request->all();
+                        $payment->save();
+                    }
                 }
-            }
 
-            return response()->json(['ok' => true], 200);
+            return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
-            Log::error('midtrans.notification error: '.$e->getMessage());
+            Log::error('midtrans.notification exception: '.$e->getMessage().' @'.$e->getFile().':'.$e->getLine());
             return response()->json(['error' => 'Internal Server Error'], 500);
         }
+    }
+
+    public function finish(Request $request)
+    {
+        return view('donasi.finish', ['result' => $request->all()]);
     }
 }

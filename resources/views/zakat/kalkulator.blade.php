@@ -3,14 +3,28 @@
 
   <form action="{{ route('zakat.hitung') }}" method="POST" class="space-y-4">
     @csrf
+
     <div>
       <label class="block mb-1">Wilayah/Region</label>
-      <input name="region" class="border rounded p-2 w-full" placeholder="Mis. Bandar Lampung" required>
+      @if(isset($regions) && count($regions))
+        <select name="region" class="border rounded p-2 w-full" required>
+          <option value="" disabled selected>Pilih wilayah</option>
+          @foreach($regions as $r)
+            <option value="{{ $r }}" @selected(old('region')===$r)>{{ $r }}</option>
+          @endforeach
+        </select>
+      @else
+        <input name="region" class="border rounded p-2 w-full" placeholder="Mis. Banda Aceh" required value="{{ old('region') }}">
+      @endif
+      @error('region') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
     </div>
+
     <div>
       <label class="block mb-1">Jumlah Hari Fidyah (opsional)</label>
-      <input type="number" name="jumlah_hari" min="1" class="border rounded p-2 w-full" placeholder="Mis. 3">
+      <input type="number" name="jumlah_hari" min="1" class="border rounded p-2 w-full" placeholder="Mis. 3" value="{{ old('jumlah_hari') }}">
+      @error('jumlah_hari') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
     </div>
+
     <button class="bg-blue-600 text-white px-4 py-2 rounded">Hitung</button>
   </form>
 

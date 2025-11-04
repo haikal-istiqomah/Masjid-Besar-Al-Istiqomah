@@ -53,8 +53,11 @@ class PublicController extends Controller
     /**
      * Menampilkan halaman form donasi untuk publik.
      */
-    public function showDonasiForm()
+    public function showDonasiForm(Request $request)
     {
+        if ($request->boolean('new')) {
+        session()->forget(['snap_token', 'order_id', 'success']);
+        }
         return view('donasi.create');
     }
 
@@ -65,50 +68,77 @@ class PublicController extends Controller
     {
         // 1. Validasi data dari form, termasuk email
         $validated = $request->validate([
-            'nama_donatur' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'jumlah' => 'required|numeric|min:10000',
-            'pesan' => 'nullable|string',
+            'nama_donatur'  => 'required|string|max:255',
+            'email'         => 'nullable|email',
+            'jumlah'        => 'required|numeric|min:10000',
+            'pesan'         => 'nullable|string',
         ]);
 
         // 2. Buat record donasi di database kita terlebih dahulu
         $donasi = Donasi::create([
             'order_id' => 'DONASI-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5)),
             'nama_donatur' => $validated['nama_donatur'],
-            'email' => $validated['email'],
+            'email' => $validated['email'] ?? null, 
             'jumlah' => $validated['jumlah'],
-            'pesan' => $validated['pesan'],
+            'pesan' => $validated['pesan'] ?? null,
             'status' => 'pending', // Status awal donasi
+            'payment_type' => null, // Filled from Webhok Midtrans
         ]);
 
         // 3. Konfigurasi Midtrans menggunakan API Keys dari file .env
-        Config::$serverKey = config('midtrans.server_key');
-        Config::$isProduction = config('midtrans.is_production');
-        Config::$isSanitized = true;
-        Config::$is3ds = true;
+        Config::$serverKey    = config('services.midtrans.server_key');
+        Config::$isProduction = (bool) config('services.midtrans.is_production');
+        Config::$isSanitized  = true;
+        Config::$is3ds        = true;
 
         // 4. Siapkan parameter yang akan dikirim ke Midtrans
         $params = [
             'transaction_details' => [
-                'order_id' => $donasi->order_id,
-                'gross_amount' => $donasi->jumlah,
+                'order_id'     => $donasi->order_id,
+                'gross_amount' => (int) $donasi->jumlah,
             ],
             'customer_details' => [
                 'first_name' => $donasi->nama_donatur,
-                'email' => $donasi->email,
+                'email'      => $donasi->email,
             ],
+            'enabled_payments' => [
+            // e-wallet & kartu
+            'credit_card', 'gopay', 'shopeepay', 'qris',
+            // VA & Mandiri Bill
+            'bank_transfer', 'bca_va', 'bni_va', 'bri_va', 'permata_va', 'other_va', 'echannel',
+            // Minimarket
+            'indomaret', 'alfamart',
+            ],
+            // (opsional) atur kadaluarsa VA/invoice
+            'expiry' => [
+                'start_time' => now()->format('Y-m-d H:i:s O'),
+                'unit'       => 'days',     // 'minutes' | 'hours' | 'days'
+                'duration'   => 1,
+            ],
+
+            // (opsional) pakai Finish URL dari .env
+            'callbacks' => [
+                'finish' => config('services.midtrans.finish_url'),  // MIDTRANS_FINISH_URL
+            ],
+
+            // 'item_details' => (opsional) customer_details/item_details
         ];
 
         try {
             // 5. Minta "Snap Token" (token pembayaran) dari Midtrans
             $snapToken = Snap::getSnapToken($params);
 
-            // 6. Kirim token ke view untuk ditampilkan sebagai pop-up pembayaran
-            return view('donasi.pembayaran', compact('snapToken', 'donasi'));
-        } catch (\Exception $e) {
-            // Jika gagal, kembalikan ke halaman sebelumnya dengan pesan error
-            return redirect()->back()->with('error', $e->getMessage());
+           // 6) Kembali ke form, trigger popup via session('snap_token')
+            return redirect()
+                ->route('donasi.create')
+                ->with('order_id', $donasi->order_id)
+                ->with('success', 'Donasi berhasil dibuat. Silakan selesaikan pembayaran.')
+                ->with('snap_token', $snapToken);
+        } catch (\Throwable $e) {
+            report($e);
+            return back()
+                ->withErrors('Gagal membuat transaksi: '.$e->getMessage())
+                ->withInput();
         }
     }
 }
-

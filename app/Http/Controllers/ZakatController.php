@@ -2,26 +2,33 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Requests\ZakatRequest;
+use App\Models\ZakatParam;
 
 class ZakatController extends Controller
 {
     public function index()
     {
-        // form kalkulator
-        return view('zakat.kalkulator');
+         $regions = \App\Models\ZakatParam::where('year', now()->year)
+                ->orderBy('region')
+                ->pluck('region')
+                ->unique()
+                ->values();
+
+    return view('zakat.kalkulator', compact('regions'));
     }
 
-    public function hitung(Request $request)
+    public function hitung(ZakatRequest $request)
     {
-        $data = $request->validate([
-            'region'      => 'required|string',
-            'jumlah_hari' => 'nullable|integer|min:1',
-        ]);
+        $data = $request->validated();
 
-        $param = ZakatParam::where('region', $data['region'])
-                  ->where('year', now()->year)
-                  ->firstOrFail();
+        $param = ZakatParam::regionYear($data['region'], now()->year)->first();
+
+        if (!$param) {
+            return back()
+                ->withErrors(['region' => 'Parameter zakat untuk wilayah & tahun ini belum tersedia.'])
+                ->withInput();
+        }
 
         $fitrahUang = $param->fitrah_qty_kg * $param->rice_price_per_kg;
         $fidyahUang = null;

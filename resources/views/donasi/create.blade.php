@@ -14,6 +14,12 @@
                         </div>
                     @endif
 
+                    @if(session('order_id'))
+                    <div class="mt-2 text-xs text-gray-500">
+                        Kode Donasi: <span class="font-mono">{{ session('order_id') }}</span>
+                    </div>
+                    @endif
+
                     {{-- Menampilkan error validasi --}}
                     @if ($errors->any())
                         <div class="mb-6 p-4 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700 rounded-lg">
@@ -62,18 +68,6 @@
                             Lanjutkan Pembayaran
                         </button>
                     </form>
-                    @if(session('snap_token'))
-                    <script src="https://app.sandbox.midtrans.com/snap/snap.js"
-                            data-client-key="{{ config('services.midtrans.client_key') }}"></script>
-                    <script>
-                      window.snap.pay(@json(session('snap_token')), {
-                        onSuccess:  function(result){ console.log('success', result); },
-                        onPending:  function(result){ console.log('pending', result); },
-                        onError:    function(result){ console.log('error', result); },
-                        onClose:    function(){ console.log('closed'); }
-                      });
-                    </script>
-                @endif
                 </div>
             </div>
         </div>
@@ -99,5 +93,59 @@
             jumlahDisplay.value = new Intl.NumberFormat('id-ID').format(jumlahHidden.value);
         }
     </script>
+            
+             @if(session('snap_token'))
+            <div class="mt-6 flex items-center gap-3">
+                <button type="button" id="btn-pay" class="px-4 py-2 rounded bg-blue-600 text-white">
+                Bayar sekarang
+                </button>
+
+                <a href="{{ route('donasi.create', ['new' => 1]) }}"
+                class="px-4 py-2 rounded border border-gray-300 text-gray-700">
+                Ubah nominal
+                </a>
+            </div>
+
+            <script src="https://app.sandbox.midtrans.com/snap/snap.js"
+                    data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+            <script>
+                const token = @json(session('snap_token'));
+
+                function toQuery(obj){
+                const p = new URLSearchParams();
+                Object.keys(obj||{}).forEach(k => { if(obj[k] !== undefined) p.append(k, obj[k]); });
+                return p.toString();
+                }
+
+                function goFinish(result){
+                // kirim semua field penting ke /midtrans/finish
+                const qs = toQuery(result || {});
+                window.location.href = "{{ route('midtrans.finish') }}" + (qs ? ("?"+qs) : "");
+                }
+
+                function openSnap(){
+                window.snap.pay(token, {
+                    onSuccess:  function(result){ goFinish(result); },
+                    onPending:  function(result){ goFinish(result); },
+                    onError:    function(result){ goFinish(result); },
+                    onClose:    function(){ /* dibiarkan, user bisa klik tombol "Bayar sekarang" */ }
+                });
+                }
+
+                // Auto-open sekali saja per order_id (biar kalau user close, tetap bisa klik tombol)
+                @if(session('order_id'))
+                const onceKey = 'snap-opened-{{ session('order_id') }}';
+                if(!sessionStorage.getItem(onceKey)){
+                    openSnap();
+                    sessionStorage.setItem(onceKey, '1');
+                }
+                @else
+                // fallback
+                openSnap();
+                @endif
+
+                document.getElementById('btn-pay').addEventListener('click', openSnap);
+            </script>
+            @endif
 </x-guest-layout>
 
