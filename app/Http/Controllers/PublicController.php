@@ -141,4 +141,22 @@ class PublicController extends Controller
                 ->withInput();
         }
     }
+
+    /**
+     * Menampilkan halaman "finish" (terima kasih) setelah redirect dari Midtrans.
+     */
+    public function finish(Request $request)
+    {
+        // Ambil semua data yang dikirim Midtrans melalui query string di URL
+        $orderId = $request->query('order_id');
+        $statusCode = $request->query('status_code');
+        $transactionStatus = $request->query('transaction_status');
+
+        // Tampilkan view 'donasi.finish' dan kirim data tersebut ke view
+        return view('donasi.finish', [
+            'order_id' => $orderId,
+            'status' => $transactionStatus,
+            'status_code' => $statusCode,
+        ]);
+    }
 }

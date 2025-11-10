@@ -41,4 +41,14 @@ class DonasiController extends Controller
 
         return back()->with('ok', 'Status donasi diperbarui.');
     }
+
+    public function sukses(Request $request)
+    {
+        // Ambil data transaksi dari session atau callback
+        $orderId = $request->query('order_id');
+        $donasi = Donasi::where('order_id', $orderId)->first();
+    
+        return view('donasi.sukses', compact('donasi'));
+    }
+
 }

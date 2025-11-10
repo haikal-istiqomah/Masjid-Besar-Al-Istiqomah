@@ -30,13 +30,13 @@ Route::post('/donasi', [PublicController::class, 'storeDonasi'])->name('donasi.s
 Route::get('/kalkulator-zakat', [ZakatController::class, 'index'])->name('zakat.index');
 Route::post('/kalkulator-zakat/hitung', [ZakatController::class, 'hitung'])->name('zakat.hitung');
 
-// Midtrans (PUBLIC)
+// Midtrans (PUBLIC) Callback dan Notification
 Route::post('/midtrans/notification', [MidtransController::class, 'notification'])
   ->name('midtrans.notification')
   ->withoutMiddleware([VerifyCsrfToken::class]);
-
-Route::get('/midtrans/finish', [MidtransController::class, 'finish'])
-  ->name('midtrans.finish');
+// Midtrans Finish halaman sukses
+Route::get('/donasi/finish', [PublicController::class, 'finish'])
+    ->name('midtrans.finish');
 /*
 |--------------------------------------------------------------------------
 | Rute Internal (Admin)
