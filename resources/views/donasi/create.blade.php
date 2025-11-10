@@ -92,6 +92,26 @@
         if(jumlahHidden.value) {
             jumlahDisplay.value = new Intl.NumberFormat('id-ID').format(jumlahHidden.value);
         }
+
+        document.querySelector('#jumlah_display').addEventListener('input', function() {
+            localStorage.setItem('nama_donatur', document.querySelector('#nama_donatur').value);
+            localStorage.setItem('email', document.querySelector('#email').value);
+            localStorage.setItem('pesan', document.querySelector('#pesan').value);
+            });
+
+            window.addEventListener('load', function() {
+            if (localStorage.getItem('nama_donatur')) {
+                document.querySelector('#nama_donatur').value = localStorage.getItem('nama_donatur');
+            }
+            if (localStorage.getItem('email')) {
+                document.querySelector('#email').value = localStorage.getItem('email');
+            }
+            if (localStorage.getItem('pesan')) {
+                document.querySelector('#pesan').value = localStorage.getItem('pesan');
+            }
+    });
+
+
     </script>
             
              @if(session('snap_token'))
@@ -106,8 +126,12 @@
                 </a>
             </div>
 
+            
+
             <script src="https://app.sandbox.midtrans.com/snap/snap.js"
-                    data-client-key="{{ config('services.midtrans.client_key') }}"></script>
+                    data-client-key="{{ config('services.midtrans.client_key') }}">
+                </script>
+
             <script>
                 const token = @json(session('snap_token'));
 
@@ -145,6 +169,7 @@
                 @endif
 
                 document.getElementById('btn-pay').addEventListener('click', openSnap);
+
             </script>
             @endif
 </x-guest-layout>

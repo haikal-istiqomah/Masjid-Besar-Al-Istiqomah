@@ -35,21 +35,21 @@
           onSuccess: function(result){
             /* Pengguna akan diarahkan ke halaman utama setelah pembayaran sukses */
             console.log(result);
-            window.location.href = '/';
+            window.location.href = "/donasi/sukses?order_id=" + result.order_id;
           },
           onPending: function(result){
             /* Pengguna akan diarahkan ke halaman utama selagi menunggu pembayaran (misal VA) */
-            console.log(result);
-            window.location.href = '/';
+            alert("Menunggu pembayaran. Silakan selesaikan transaksi Anda.");
           },
           onError: function(result){
             /* Jika terjadi error saat pembayaran */
-            console.log(result);
-            window.location.href = '/donasi'; // Kembali ke form donasi jika gagal
+            alert("Terjadi kesalahan saat memproses pembayaran.");
           },
           onClose: function(){
             /* Jika pengguna menutup pop-up tanpa menyelesaikan pembayaran */
-            alert('Anda menutup jendela pembayaran.');
+             console.log("Popup Snap ditutup oleh pengguna tanpa menyelesaikan transaksi.");
+            // ✅ Ini mencegah redirect aneh dan cukup refresh form
+            window.location.reload();
           }
         })
       }
