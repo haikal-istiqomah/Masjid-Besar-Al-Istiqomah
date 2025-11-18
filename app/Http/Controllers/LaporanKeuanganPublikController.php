@@ -6,7 +6,7 @@ use App\Models\Transaksi; // <-- 1. Ambil model Transaksi
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
-class LaporanController extends Controller
+class LaporanKeuanganPublikController extends Controller
 {
     /**
      * Menampilkan halaman laporan keuangan publik.

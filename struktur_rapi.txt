@@ -1,0 +1,248 @@
+﻿Folder PATH listing for volume Windows (Custom Script)
+|   .editorconfig
+|   .env
+|   .env.example
+|   .gitattributes
+|   .gitignore
+|   artisan
+|   composer.json
+|   composer.lock
+|   package-lock.json
+|   package.json
+|   phpunit.xml
+|   postcss.config.js
+|   README.md
+|   struktur.txt
+|   struktur_rapi.txt
+|   tailwind.config.js
+|   vite.config.js
++---app
+|   +---Exports
+|   |   |   DonasiExport.php
+|   +---Http
+|   |   +---Controllers
+|   |   |   |   BeritaController.php
+|   |   |   |   BeritaPublikController.php
+|   |   |   |   Controller.php
+|   |   |   |   DashboardController.php
+|   |   |   |   DonasiController.php
+|   |   |   |   LandingController.php
+|   |   |   |   LaporanKeuanganController.php
+|   |   |   |   LaporanKeuanganPublikController.php
+|   |   |   |   MidtransController.php
+|   |   |   |   PostController.php
+|   |   |   |   ProfileController.php
+|   |   |   |   PublicController.php
+|   |   |   |   ZakatController.php
+|   |   |   +---Admin
+|   |   |   |   |   AdminDashboardController.php
+|   |   |   |   |   AuthController.php
+|   |   |   |   |   DonasiController.php
+|   |   |   |   |   GoldController.php
+|   |   |   |   |   GoldPriceController.php
+|   |   |   +---Auth
+|   |   |   |   |   AdminLoginController.php
+|   |   |   |   |   AuthenticatedSessionController.php
+|   |   |   |   |   ConfirmablePasswordController.php
+|   |   |   |   |   EmailVerificationNotificationController.php
+|   |   |   |   |   EmailVerificationPromptController.php
+|   |   |   |   |   NewPasswordController.php
+|   |   |   |   |   PasswordController.php
+|   |   |   |   |   PasswordResetLinkController.php
+|   |   |   |   |   RegisteredUserController.php
+|   |   |   |   |   VerifyEmailController.php
+|   |   +---Middleware
+|   |   |   |   NoCache.php
+|   |   |   |   RoleMiddleware.php
+|   |   +---Requests
+|   |   |   |   ProfileUpdateRequest.php
+|   |   |   |   ZakatRequest.php
+|   |   |   +---Auth
+|   |   |   |   |   LoginRequest.php
+|   +---Models
+|   |   |   Asset.php
+|   |   |   Berita.php
+|   |   |   Donasi.php
+|   |   |   GoldPriceHistory.php
+|   |   |   Payment.php
+|   |   |   Post.php
+|   |   |   Transaction.php
+|   |   |   Transaksi.php
+|   |   |   User.php
+|   |   |   Zakat.php
+|   +---Providers
+|   |   |   AppServiceProvider.php
+|   |   |   RouteServiceProvider.php
+|   +---Services
+|   |   |   GoldPriceService.php
+|   +---View
+|   |   +---Components
+|   |   |   |   AppLayout.php
+|   |   |   |   GuestLayout.php
++---bootstrap
+|   |   app.php
+|   |   providers.php
+|   +---cache
+|   |   |   .gitignore
+|   |   |   pacC911.tmp
+|   |   |   packages.php
+|   |   |   services.php
++---config
+|   |   app.php
+|   |   auth.php
+|   |   cache.php
+|   |   database.php
+|   |   filesystems.php
+|   |   logging.php
+|   |   mail.php
+|   |   midtrans.php
+|   |   queue.php
+|   |   services.php
+|   |   session.php
++---database
+|   |   .gitignore
+|   |   database.sqlite
+|   +---factories
+|   |   |   PostFactory.php
+|   |   |   UserFactory.php
+|   +---migrations
+|   |   |   0001_01_01_000000_create_users_table.php
+|   |   |   0001_01_01_000001_create_cache_table.php
+|   |   |   0001_01_01_000002_create_jobs_table.php
+|   |   |   2025_08_28_091917_create_posts_table.php
+|   |   |   2025_08_28_092525_create_transactions_table.php
+|   |   |   2025_08_28_092538_create_assets_table.php
+|   |   |   2025_08_29_024510_create_beritas_table.php
+|   |   |   2025_09_01_101340_create_transaksis_table.php
+|   |   |   2025_09_06_073926_create_donasis_table.php
+|   |   |   2025_09_12_112700_add_tanggal_publikasi_to_beritas_table.php
+|   |   |   2025_09_12_234612_rename_konten_to_isi_in_beritas_table.php
+|   |   |   2025_09_16_105909_add_email_to_donasis_table.php
+|   |   |   2025_09_19_102039_add_payment_type_to_donasis_table.php
+|   |   |   2025_09_22_155956_create_payments_table.php
+|   |   |   2025_09_22_170218_create_zakat_params_table.php
+|   |   |   2025_09_22_172641_create_families_table.php
+|   |   |   2025_09_22_172651_create_members_table.php
+|   |   |   2025_09_22_172703_create_death_events_table.php
+|   |   |   2025_09_22_172713_create_death_assessments_table.php
+|   |   |   2025_10_18_162925_update_donasis_status_constraint.php
+|   |   |   2025_10_20_110305_add_payment_type_to_donasis_table.php
+|   |   |   2025_11_11_062128_create_zakats_table.php
+|   |   |   2025_11_13_101511_create_gold_price_histories_table.php
+|   |   |   2025_11_16_100520_add_role_to_users_table.php
+|   +---seeders
+|   |   |   DatabaseSeeder.php
+|   |   |   PostSeeder.php
+|   |   |   ZakatParamSeeder.php
++---public
+|   |   .htaccess
+|   |   favicon.ico
+|   |   hot
+|   |   index.php
+|   |   robots.txt
+|   +---build
+|   |   |   manifest.json
+|   |   +---assets
+|   |   |   |   app-DtCVKgHt.js
+|   |   |   |   app-of6Adbej.css
+|   +---images
+|   |   |   logo-masjid.jpg
+|   |   |   logo-masjid.png
+|   |   +---landing
+|   |   |   |   slide1.jpg
+|   |   |   |   slide2.jpg
+|   |   |   |   slide3.jpg
++---resources
+|   +---css
+|   |   |   app.css
+|   +---js
+|   |   |   app.js
+|   |   |   bootstrap.js
+|   +---views
+|   |   |   landing.blade.php
+|   |   +---admin
+|   |   |   |   dashboard.blade.php
+|   |   |   |   harga-emas-history.blade.php
+|   |   |   |   harga-emas.blade.php
+|   |   |   |   login.blade.php
+|   |   |   +---berita
+|   |   |   |   |   create.blade.php
+|   |   |   |   |   edit.blade.php
+|   |   |   |   |   index.blade.php
+|   |   |   +---donasi
+|   |   |   |   |   laporan.blade.php
+|   |   |   |   |   pembayaran.blade.php
+|   |   |   +---laporan
+|   |   |   |   |   create.blade.php
+|   |   |   |   |   edit.blade.php
+|   |   |   |   |   index.blade.php
+|   |   +---auth
+|   |   |   |   confirm-password.blade.php
+|   |   |   |   forgot-password.blade.php
+|   |   |   |   login.blade.php
+|   |   |   |   register.blade.php
+|   |   |   |   reset-password.blade.php
+|   |   |   |   verify-email.blade.php
+|   |   +---components
+|   |   |   |   application-logo.blade.php
+|   |   |   |   auth-session-status.blade.php
+|   |   |   |   danger-button.blade.php
+|   |   |   |   dropdown-link.blade.php
+|   |   |   |   dropdown.blade.php
+|   |   |   |   input-error.blade.php
+|   |   |   |   input-label.blade.php
+|   |   |   |   main-layout.blade.php
+|   |   |   |   modal.blade.php
+|   |   |   |   nav-link.blade.php
+|   |   |   |   primary-button.blade.php
+|   |   |   |   responsive-nav-link.blade.php
+|   |   |   |   secondary-button.blade.php
+|   |   |   |   text-input.blade.php
+|   |   +---donasi
+|   |   |   |   bukti.blade.php
+|   |   |   |   create.blade.php
+|   |   |   |   pembayaran.blade.php
+|   |   |   |   sukses.blade.php
+|   |   +---landing
+|   |   |   |   index.blade.php
+|   |   +---laporan
+|   |   |   |   index.blade.php
+|   |   +---layouts
+|   |   |   |   app.blade.php
+|   |   |   |   guest.blade.php
+|   |   |   |   navigation.blade.php
+|   |   |   |   public-navigation.blade.php
+|   |   |   |   public.blade.php
+|   |   +---profile
+|   |   |   |   edit.blade.php
+|   |   |   +---partials
+|   |   |   |   |   delete-user-form.blade.php
+|   |   |   |   |   update-password-form.blade.php
+|   |   |   |   |   update-profile-information-form.blade.php
+|   |   +---public
+|   |   |   +---berita
+|   |   |   |   |   index.blade.php
+|   |   |   |   |   show.blade.php
+|   |   +---zakat
+|   |   |   |   kalkulator.blade.php
+|   |   |   |   pembayaran.blade.php
+|   |   |   |   sukses.blade.php
++---routes
+|   |   auth.php
+|   |   console.php
+|   |   web.php
++---tests
+|   |   Pest.php
+|   |   TestCase.php
+|   +---Feature
+|   |   |   ExampleTest.php
+|   |   |   ProfileTest.php
+|   |   +---Auth
+|   |   |   |   AuthenticationTest.php
+|   |   |   |   EmailVerificationTest.php
+|   |   |   |   PasswordConfirmationTest.php
+|   |   |   |   PasswordResetTest.php
+|   |   |   |   PasswordUpdateTest.php
+|   |   |   |   RegistrationTest.php
+|   +---Unit
+|   |   |   ExampleTest.php

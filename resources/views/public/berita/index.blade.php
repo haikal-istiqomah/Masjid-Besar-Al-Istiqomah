@@ -55,7 +55,7 @@
                     </div>
                 @empty
                     <div class="md:col-span-2 lg:col-span-3 text-center py-12">
-                        <p class="text-gray-500 dark:text-gray-400">Tidak ada berita yang ditemukan.</p>
+                        <p class="text-gray-500 dark:text-gray-400">Atmin belum mengunggah</p>
                     </div>
                 @endforelse
             </div>

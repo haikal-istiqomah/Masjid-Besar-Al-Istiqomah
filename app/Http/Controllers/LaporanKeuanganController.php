@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Transaksi;
 use Illuminate\Http\Request;
 
-class TransaksiController extends Controller
+class LaporanKeuanganController extends Controller
 {
     public function index(Request $request)
     {
@@ -16,12 +16,12 @@ class TransaksiController extends Controller
         $sort = $request->input('sort', 'terbaru');
         $query->orderBy('tanggal', $sort == 'terlama' ? 'asc' : 'desc');
         $transaksis = $query->get();
-        return view('admin.transaksi.index', compact('transaksis'));
+        return view('admin.laporan.index', compact('transaksis'));
     }
 
     public function create()
     {
-        return view('admin.transaksi.create');
+        return view('admin.laporan.create');
     }
 
     public function store(Request $request)
@@ -34,18 +34,18 @@ class TransaksiController extends Controller
             'sumber' => 'required|string',
         ]);
         Transaksi::create($validated);
-        return redirect()->route('admin.transaksi.index')->with('success', 'Transaksi berhasil ditambahkan!');
+        return redirect()->route('admin.laporan.index')->with('success', 'Transaksi berhasil ditambahkan!');
     }
 
     // PERBAIKAN: Menambahkan fungsi show() yang hilang
     public function show(Transaksi $transaksi)
     {
-        return view('admin.transaksi.edit', compact('transaksi'));
+        return view('admin.laporan.edit', compact('transaksi'));
     }
 
     public function edit(Transaksi $transaksi)
     {
-        return view('admin.transaksi.edit', compact('transaksi'));
+        return view('admin.laporan.edit', compact('transaksi'));
     }
 
     public function update(Request $request, Transaksi $transaksi)
@@ -58,12 +58,12 @@ class TransaksiController extends Controller
             'sumber' => 'required|string',
         ]);
         $transaksi->update($validated);
-        return redirect()->route('admin.transaksi.index')->with('success', 'Transaksi berhasil diperbarui!');
+        return redirect()->route('admin.laporan.index')->with('success', 'Transaksi berhasil diperbarui!');
     }
 
     public function destroy(Transaksi $transaksi)
     {
         $transaksi->delete();
-        return redirect()->route('admin.transaksi.index')->with('success', 'Transaksi berhasil dihapus!');
+        return redirect()->route('admin.laporan.index')->with('success', 'Transaksi berhasil dihapus!');
     }
 }

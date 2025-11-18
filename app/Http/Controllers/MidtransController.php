@@ -98,6 +98,27 @@ class MidtransController extends Controller
                         $payment->save();
                     }
                 }
+                // zakat // ===== ZAKAT (jika ada barisnya) =====
+            if (str_starts_with($orderId, 'ZAKAT-')) {
+                $zakat = \App\Models\Zakat::where('order_id', $orderId)->first();
+                if ($zakat) {
+                    $zakatStatus = match ($trxStatus) {
+                        'capture', 'settlement' => 'paid',
+                        'pending'               => 'pending',
+                        'deny'                  => 'failed',
+                        'expire'                => 'expired',
+                        'cancel'                => 'failed',
+                        default                 => 'pending',
+                    };
+
+                    $zakat->update([
+                        'status' => $zakatStatus,
+                        'midtrans_response' => $request->all()
+                    ]);
+
+                    Log::info("Zakat {$orderId} updated to status {$zakatStatus}");
+                }
+            }
 
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
@@ -110,4 +131,27 @@ class MidtransController extends Controller
     {
         return view('donasi.finish', ['result' => $request->all()]);
     }
+
+    // Helper untuk membuat snap token (dipanggil dari ZakatController)
+    public function createSnapTokenForOrder($orderId, $amount, $customerName = null, $customerEmail = null)
+    {
+        \Midtrans\Config::$serverKey = config('services.midtrans.server_key');
+        \Midtrans\Config::$isProduction = config('services.midtrans.is_production', false);
+        \Midtrans\Config::$clientKey = config('services.midtrans.client_key');
+
+        $params = [
+            'transaction_details' => [
+                'order_id' => $orderId,
+                'gross_amount' => (int) $amount,
+            ],
+            'customer_details' => [
+                'first_name' => $customerName,
+                'email' => $customerEmail,
+            ],
+        ];
+
+        $snap = \Midtrans\Snap::createTransaction($params);
+        return $snap->token; // token untuk snap
+    }
+
 }

@@ -7,6 +7,8 @@ use App\Models\Berita;
 use App\Models\Transaksi;
 use App\Models\Donasi;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
+
 
 // Tambahkan use statement untuk Midtrans
 use Midtrans\Config;
@@ -23,7 +25,7 @@ class PublicController extends Controller
         $totalPemasukan = Transaksi::where('jenis', 'Pemasukan')->sum('jumlah');
         $totalPengeluaran = Transaksi::where('jenis', 'Pengeluaran')->sum('jumlah');
         $saldoAkhir = $totalPemasukan - $totalPengeluaran;
-        return view('welcome', compact('beritas', 'saldoAkhir'));
+        return view('landing', compact('beritas', 'saldoAkhir'));
     }
 
     /**
@@ -147,16 +149,36 @@ class PublicController extends Controller
      */
     public function finish(Request $request)
     {
-        // Ambil semua data yang dikirim Midtrans melalui query string di URL
+        // Ambil order_id dari URL (dikirim Midtrans setelah transaksi)
         $orderId = $request->query('order_id');
-        $statusCode = $request->query('status_code');
-        $transactionStatus = $request->query('transaction_status');
 
-        // Tampilkan view 'donasi.finish' dan kirim data tersebut ke view
-        return view('donasi.finish', [
-            'order_id' => $orderId,
-            'status' => $transactionStatus,
-            'status_code' => $statusCode,
-        ]);
+        // Cari data donasi berdasarkan order_id
+        $donasi = \App\Models\Donasi::where('order_id', $orderId)->first();
+
+        // Jika data tidak ditemukan, kembalikan ke halaman donasi
+        if (!$donasi) {
+            return redirect()->route('donasi.create')
+                ->with('error', 'Data donasi tidak ditemukan atau belum diproses.');
+        }
+
+        // Tambahkan pesan flash
+        session()->flash('success', 'Terima kasih! Donasi Anda telah berhasil diproses.');
+
+        // Kirim data ke view sukses.blade.php
+        return view('donasi.sukses', compact('donasi'));
     }
+
+    /**
+     * Mencetak struk donasi dalam format PDF.
+     */
+    public function cetak($id)
+    {
+        $donasi = \App\Models\Donasi::findOrFail($id);
+
+        $pdf = Pdf::loadView('donasi.bukti', compact('donasi'))
+            ->setPaper('A5', 'portrait');
+
+        return $pdf->download('Bukti-Donasi-'.$donasi->order_id.'.pdf');
+    }
+
 }
