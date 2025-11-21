@@ -24,7 +24,7 @@
 
                     {{-- Tombol Kembali --}}
                     <div class="mt-12">
-                        <a href="{{ route('berita.publik.index') }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        <a href="{{ route('front.berita.index') }}" class="text-blue-600 dark:text-blue-400 hover:underline">
                             &larr; Kembali ke semua berita
                         </a>
                     </div>

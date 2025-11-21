@@ -243,6 +243,83 @@ class DonasiExport implements FromCollection, WithHeadings, WithMapping
 
 
 ==================================================
+FILE: .\app\Exports\ZakatExport.php
+==================================================
+
+<?php
+
+namespace App\Exports;
+
+use App\Models\Zakat;
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Illuminate\Http\Request;
+
+class ZakatExport implements FromQuery, WithHeadings, WithMapping
+{
+    protected $request;
+
+    public function __construct(Request $request)
+    {
+        $this->request = $request;
+    }
+
+    public function query()
+    {
+        $query = Zakat::query();
+
+        // Filter sesuai yang ada di tampilan index
+        if ($this->request->filled('status')) {
+            $query->where('status', $this->request->status);
+        }
+        if ($this->request->filled('jenis')) {
+            $query->where('jenis', $this->request->jenis);
+        }
+        
+        // Filter tanggal (opsional, jika ingin ditambahkan nanti)
+        if ($this->request->filled('start_date') && $this->request->filled('end_date')) {
+            $query->whereBetween('created_at', [
+                $this->request->start_date . ' 00:00:00', 
+                $this->request->end_date . ' 23:59:59'
+            ]);
+        }
+
+        return $query->latest(); // Urutkan terbaru
+    }
+
+    public function headings(): array
+    {
+        return [
+            'Order ID',
+            'Tanggal',
+            'Nama Muzakki',
+            'Email',
+            'No. Telepon',
+            'Jenis Zakat',
+            'Jumlah (Rp)',
+            'Status',
+            'Keterangan',
+        ];
+    }
+
+    public function map($zakat): array
+    {
+        return [
+            $zakat->order_id,
+            $zakat->created_at->format('d-m-Y H:i'),
+            $zakat->nama ?? 'Hamba Allah',
+            $zakat->email,
+            $zakat->phone,
+            ucfirst($zakat->jenis),
+            $zakat->jumlah,
+            ucfirst($zakat->status),
+            $zakat->keterangan,
+        ];
+    }
+}
+
+==================================================
 FILE: .\app\Http\Controllers\BeritaController.php
 ==================================================
 
@@ -363,48 +440,6 @@ class BeritaController extends Controller
 
 
 ==================================================
-FILE: .\app\Http\Controllers\BeritaPublikController.php
-==================================================
-
-<?php
-
-namespace App\Http\Controllers;
-
-use App\Models\Berita;
-use Illuminate\Http\Request;
-
-class BeritaPublikController extends Controller
-{
-    /**
-     * Menampilkan halaman utama yang berisi semua berita.
-     */
-    public function index()
-    {
-        // Ambil semua berita, urutkan dari yang paling baru, dan gunakan paginasi
-        $beritas = Berita::latest()->paginate(9);
-
-        // Ambil semua kategori yang unik untuk ditampilkan sebagai filter
-        $kategoris = Berita::select('kategori')->distinct()->pluck('kategori');
-
-        return view('publik.berita.index', compact('beritas', 'kategoris'));
-    }
-
-    /**
-     * Menampilkan berita berdasarkan kategori yang dipilih.
-     */
-    public function showByKategori($kategori)
-    {
-        // Ambil berita berdasarkan kategori, urutkan, dan paginasi
-        $beritas = Berita::where('kategori', $kategori)->latest()->paginate(9);
-
-        // Ambil semua kategori yang unik
-        $kategoris = Berita::select('kategori')->distinct()->pluck('kategori');
-
-        return view('publik.berita.index', compact('beritas', 'kategoris'));
-    }
-}
-
-==================================================
 FILE: .\app\Http\Controllers\Controller.php
 ==================================================
 
@@ -419,109 +454,6 @@ use Illuminate\Routing\Controller as BaseController;
 class Controller extends BaseController
 {
     use AuthorizesRequests, ValidatesRequests;
-}
-
-
-==================================================
-FILE: .\app\Http\Controllers\DashboardController.php
-==================================================
-
-<?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-
-class DashboardController extends Controller
-{
-    //
-}
-
-
-==================================================
-FILE: .\app\Http\Controllers\DonasiController.php
-==================================================
-
-<?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use App\Models\Donasi; // <-- Import model Donasi
-
-class DonasiController extends Controller
-{
-    /**
-     * Menyimpan data donasi baru dari form.
-     */
-    public function store(Request $request)
-    {
-        // 1. Validasi data yang masuk dari form
-        $request->validate([
-            'nama_donatur' => 'required|string|max:255',
-            'jumlah' => 'required|numeric|min:10000', // Sesuai form, minimal 10.000
-            'pesan' => 'nullable|string',
-        ]);
-
-        // 2. Buat record baru di database
-        Donasi::create([
-           'order_id'    => 'DONASI-' . uniqid(),
-           'nama_donatur'=> $request->nama_donatur,
-           'jumlah'      => $request->jumlah,
-           'pesan'       => $request->pesan,
-           'status'      => 'Pending', // <— ganti dari 'unpaid' // Status awal, karena belum dibayar
-        ]);
-
-        // 3. Arahkan kembali ke halaman utama dengan pesan sukses
-        // (Nantinya, ini akan diarahkan ke halaman pembayaran)
-        return redirect('/')->with('success', 'Data donasi Anda telah kami terima. Silakan lanjutkan pembayaran.');
-    }
-}
-
-==================================================
-FILE: .\app\Http\Controllers\LandingController.php
-==================================================
-
-<?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use App\Models\Berita; // jika ada model berita
-use App\Models\Donasi; // jika ada model donasi
-
-class LandingController extends Controller
-{
-    public function index(Request $request)
-    {
-        // Ambil 6 berita terbaru jika model Berita tersedia, jika tidak, kosongkan
-        $beritas = class_exists(Berita::class) ? Berita::latest()->take(6)->get() : collect();
-
-        // Ringkasan donasi singkat (jika ada model Donasi)
-        $donasiSummary = [
-            'total_terkumpul' => 0,
-            'jumlah_transaksi' => 0,
-        ];
-        if (class_exists(Donasi::class)) {
-            $donasiSummary['total_terkumpul'] = Donasi::sum('jumlah') ?? 0;
-            $donasiSummary['jumlah_transaksi'] = Donasi::count();
-        }
-
-        // Data statis / konfigurasi untuk landing page
-        $masjid = [
-            'title' => 'Masjid Besar Al-Istiqomah',
-            'address' => "Jl. Gerbang Dayaku RT.06, Desa Loa Duri Ilir, Kecamatan Loa Janan, Kabupaten Kutai Kartanegara, Kalimantan Timur, 75391",
-            'email' => 'alistiqomah14@gmail.com',
-            'phone' => '0822 54589345',
-            'instagram' => 'https://www.instagram.com/masjid_besar_al_istiqomah0101',
-            'facebook' => 'https://www.facebook.com/share/19PUV8ekbp/',
-            'youtube' => 'https://youtube.com/@masjidbesaral-istiqomah6671',
-            // Google Maps embed url (iframe src) — kita gunakan shared link
-            'maps_embed' => 'https://maps.app.goo.gl/7rbuW8pTqgfT12Ty8',
-        ];
-
-        return view('landing', compact('beritas', 'donasiSummary', 'masjid'));
-    }
 }
 
 
@@ -635,7 +567,7 @@ class LaporanKeuanganPublikController extends Controller
         $saldo = $pemasukan - $pengeluaran;
 
         // 5. Kirim semua data, TERMASUK tanggal filter, ke view
-        return view('laporan.index', [
+        return view('front.laporan.index', [
             'transaksis' => $transaksis,
             'pemasukan' => $pemasukan,
             'pengeluaran' => $pengeluaran,
@@ -781,7 +713,7 @@ class MidtransController extends Controller
 
     public function finish(Request $request)
     {
-        return view('donasi.finish', ['result' => $request->all()]);
+        return view('front.donasi.sukses', ['result' => $request->all()]);
     }
 
     // Helper untuk membuat snap token (dipanggil dari ZakatController)
@@ -806,38 +738,6 @@ class MidtransController extends Controller
         return $snap->token; // token untuk snap
     }
 
-}
-
-
-==================================================
-FILE: .\app\Http\Controllers\PostController.php
-==================================================
-
-<?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use App\Models\Post;
-
-class PostController extends Controller
-{
-    public function index()
-{
-    // 1. Ambil semua data dari tabel posts
-    $posts = Post::all();
-
-    // 2. Kirim data ke view dan tampilkan
-    return view('posts.index', ['posts' => $posts]);
-}
-
-    public function show(Post $post)
-{
-    // Laravel secara otomatis akan mencari Post berdasarkan ID dari URL
-    // Ini disebut "Route Model Binding"
-
-    return view('posts.show', ['post' => $post]);
-}
 }
 
 
@@ -908,195 +808,6 @@ class ProfileController extends Controller
 
 
 ==================================================
-FILE: .\app\Http\Controllers\PublicController.php
-==================================================
-
-<?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use App\Models\Berita;
-use App\Models\Transaksi;
-use App\Models\Donasi;
-use Illuminate\Support\Str;
-use Barryvdh\DomPDF\Facade\Pdf;
-
-
-// Tambahkan use statement untuk Midtrans
-use Midtrans\Config;
-use Midtrans\Snap;
-
-class PublicController extends Controller
-{
-    /**
-     * Menampilkan halaman utama (homepage) website.
-     */
-    public function index()
-    {
-        $beritas = Berita::latest('tanggal_publikasi')->take(3)->get();
-        $totalPemasukan = Transaksi::where('jenis', 'Pemasukan')->sum('jumlah');
-        $totalPengeluaran = Transaksi::where('jenis', 'Pengeluaran')->sum('jumlah');
-        $saldoAkhir = $totalPemasukan - $totalPengeluaran;
-        return view('landing', compact('beritas', 'saldoAkhir'));
-    }
-
-    /**
-     * Menampilkan halaman daftar semua berita untuk publik.
-     */
-    public function berita(Request $request)
-    {
-        $query = Berita::query();
-        if ($request->filled('kategori')) {
-            $query->where('kategori', $request->kategori);
-        }
-        $query->orderBy('tanggal_publikasi', $request->input('urutan', 'desc'));
-        $semuaBerita = $query->paginate(9)->withQueryString();
-        return view('public.berita.index', [
-            'semuaBerita' => $semuaBerita
-        ]);
-    }
-
-    /**
-     * Menampilkan halaman detail dari sebuah berita untuk publik.
-     */
-    public function showBerita(Berita $berita)
-    {
-        return view('public.berita.show', compact('berita'));
-    }
-
-    /**
-     * Menampilkan halaman form donasi untuk publik.
-     */
-    public function showDonasiForm(Request $request)
-    {
-        if ($request->boolean('new')) {
-        session()->forget(['snap_token', 'order_id', 'success']);
-        }
-        return view('donasi.create');
-    }
-
-    /**
-     * Memproses donasi, menyimpannya, dan membuat transaksi di Midtrans.
-     */
-    public function storeDonasi(Request $request)
-    {
-        // 1. Validasi data dari form, termasuk email
-        $validated = $request->validate([
-            'nama_donatur'  => 'required|string|max:255',
-            'email'         => 'nullable|email',
-            'jumlah'        => 'required|numeric|min:10000',
-            'pesan'         => 'nullable|string',
-        ]);
-
-        // 2. Buat record donasi di database kita terlebih dahulu
-        $donasi = Donasi::create([
-            'order_id' => 'DONASI-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5)),
-            'nama_donatur' => $validated['nama_donatur'],
-            'email' => $validated['email'] ?? null, 
-            'jumlah' => $validated['jumlah'],
-            'pesan' => $validated['pesan'] ?? null,
-            'status' => 'pending', // Status awal donasi
-            'payment_type' => null, // Filled from Webhok Midtrans
-        ]);
-
-        // 3. Konfigurasi Midtrans menggunakan API Keys dari file .env
-        Config::$serverKey    = config('services.midtrans.server_key');
-        Config::$isProduction = (bool) config('services.midtrans.is_production');
-        Config::$isSanitized  = true;
-        Config::$is3ds        = true;
-
-        // 4. Siapkan parameter yang akan dikirim ke Midtrans
-        $params = [
-            'transaction_details' => [
-                'order_id'     => $donasi->order_id,
-                'gross_amount' => (int) $donasi->jumlah,
-            ],
-            'customer_details' => [
-                'first_name' => $donasi->nama_donatur,
-                'email'      => $donasi->email,
-            ],
-            'enabled_payments' => [
-            // e-wallet & kartu
-            'credit_card', 'gopay', 'shopeepay', 'qris',
-            // VA & Mandiri Bill
-            'bank_transfer', 'bca_va', 'bni_va', 'bri_va', 'permata_va', 'other_va', 'echannel',
-            // Minimarket
-            'indomaret', 'alfamart',
-            ],
-            // (opsional) atur kadaluarsa VA/invoice
-            'expiry' => [
-                'start_time' => now()->format('Y-m-d H:i:s O'),
-                'unit'       => 'days',     // 'minutes' | 'hours' | 'days'
-                'duration'   => 1,
-            ],
-
-            // (opsional) pakai Finish URL dari .env
-            'callbacks' => [
-                'finish' => config('services.midtrans.finish_url'),  // MIDTRANS_FINISH_URL
-            ],
-
-            // 'item_details' => (opsional) customer_details/item_details
-        ];
-
-        try {
-            // 5. Minta "Snap Token" (token pembayaran) dari Midtrans
-            $snapToken = Snap::getSnapToken($params);
-
-           // 6) Kembali ke form, trigger popup via session('snap_token')
-            return redirect()
-                ->route('donasi.create')
-                ->with('order_id', $donasi->order_id)
-                ->with('success', 'Donasi berhasil dibuat. Silakan selesaikan pembayaran.')
-                ->with('snap_token', $snapToken);
-        } catch (\Throwable $e) {
-            report($e);
-            return back()
-                ->withErrors('Gagal membuat transaksi: '.$e->getMessage())
-                ->withInput();
-        }
-    }
-
-    /**
-     * Menampilkan halaman "finish" (terima kasih) setelah redirect dari Midtrans.
-     */
-    public function finish(Request $request)
-    {
-        // Ambil order_id dari URL (dikirim Midtrans setelah transaksi)
-        $orderId = $request->query('order_id');
-
-        // Cari data donasi berdasarkan order_id
-        $donasi = \App\Models\Donasi::where('order_id', $orderId)->first();
-
-        // Jika data tidak ditemukan, kembalikan ke halaman donasi
-        if (!$donasi) {
-            return redirect()->route('donasi.create')
-                ->with('error', 'Data donasi tidak ditemukan atau belum diproses.');
-        }
-
-        // Tambahkan pesan flash
-        session()->flash('success', 'Terima kasih! Donasi Anda telah berhasil diproses.');
-
-        // Kirim data ke view sukses.blade.php
-        return view('donasi.sukses', compact('donasi'));
-    }
-
-    /**
-     * Mencetak struk donasi dalam format PDF.
-     */
-    public function cetak($id)
-    {
-        $donasi = \App\Models\Donasi::findOrFail($id);
-
-        $pdf = Pdf::loadView('donasi.bukti', compact('donasi'))
-            ->setPaper('A5', 'portrait');
-
-        return $pdf->download('Bukti-Donasi-'.$donasi->order_id.'.pdf');
-    }
-
-}
-
-==================================================
 FILE: .\app\Http\Controllers\ZakatController.php
 ==================================================
 
@@ -1125,7 +836,7 @@ class ZakatController extends Controller
             session()->forget('success');
         }
 
-        return view('zakat.kalkulator', [
+        return view('front.zakat.kalkulator', [
             'regions' => $regions,
             'goldPriceInit' => $goldPriceInit,
         ]);
@@ -1286,7 +997,7 @@ class ZakatController extends Controller
             'zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input'
         ]);
 
-        return view('zakat.pembayaran', compact('zakat', 'snapToken'));
+        return view('front.zakat.pembayaran', compact('zakat', 'snapToken'));
     }
 
     // ================================
@@ -1319,7 +1030,7 @@ class ZakatController extends Controller
             'zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input'
         ]);
 
-        return view('zakat.pembayaran', compact('zakat', 'snapToken'));
+        return view('front.zakat.pembayaran', compact('zakat', 'snapToken'));
     }
 
     // ================================
@@ -1347,15 +1058,32 @@ FILE: .\app\Http\Controllers\Admin\AdminDashboardController.php
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Donasi;
+use App\Models\Zakat;
+use App\Models\Transaksi;
+use App\Services\GoldPriceService; // Pastikan service ini di-import
 
 class AdminDashboardController extends Controller
 {
-    public function index()
+    public function index(GoldPriceService $goldService)
     {
-        return view('admin.dashboard');
+        // 1. Hitung Total Donasi (Status 'success')
+        $totalDonasi = Donasi::where('status', 'success')->sum('jumlah');
+
+        // 2. Hitung Total Zakat (Status 'paid')
+        $totalZakat = Zakat::where('status', 'paid')->sum('jumlah');
+        
+        // 3. Hitung Keuangan Operasional (Pemasukan - Pengeluaran dari tabel transaksis)
+        $pemasukanOps = Transaksi::where('jenis', 'Pemasukan')->sum('jumlah');
+        $pengeluaranOps = Transaksi::where('jenis', 'Pengeluaran')->sum('jumlah');
+        $saldoOps = $pemasukanOps - $pengeluaranOps;
+
+        // 4. Harga Emas (Menggunakan Service yang sudah ada)
+        $hargaEmas = $goldService->getGoldPrice();
+
+        return view('admin.dashboard', compact('totalDonasi', 'totalZakat', 'saldoOps', 'hargaEmas'));
     }
 }
-
 
 ==================================================
 FILE: .\app\Http\Controllers\Admin\AuthController.php
@@ -1552,6 +1280,65 @@ class GoldPriceController extends Controller
     }
 }
 
+
+==================================================
+FILE: .\app\Http\Controllers\Admin\ZakatController.php
+==================================================
+
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Zakat;
+use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel; //library untuk export excel
+use App\Exports\ZakatExport;
+
+class ZakatController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = Zakat::latest();
+
+        // Filter status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter jenis zakat
+        if ($request->filled('jenis')) {
+            $query->where('jenis', $request->jenis);
+        }
+
+        $zakats = $query->paginate(10)->withQueryString();
+
+        return view('admin.zakat.index', compact('zakats'));
+    }
+
+    public function show(Zakat $zakat)
+    {
+        return view('admin.zakat.show', compact('zakat'));
+    }
+    
+    // Fitur update status manual jika diperlukan (misal bayar tunai)
+    public function updateStatus(Request $request, Zakat $zakat)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,paid,failed',
+        ]);
+
+        $zakat->update(['status' => $request->status]);
+
+        return back()->with('success', 'Status zakat berhasil diperbarui.');
+    }
+
+    // Export data zakat ke Excel
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(new ZakatExport($request), 'Laporan-Zakat-' . now()->format('Y-m-d') . '.xlsx');
+    }
+}
 
 ==================================================
 FILE: .\app\Http\Controllers\Auth\AdminLoginController.php
@@ -1994,42 +1781,6 @@ class RoleMiddleware
 
 
 ==================================================
-FILE: .\app\Http\Requests\ProfileUpdateRequest.php
-==================================================
-
-<?php
-
-namespace App\Http\Requests;
-
-use App\Models\User;
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-
-class ProfileUpdateRequest extends FormRequest
-{
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
-    public function rules(): array
-    {
-        return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => [
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
-            ],
-        ];
-    }
-}
-
-
-==================================================
 FILE: .\app\Http\Requests\ZakatRequest.php
 ==================================================
 
@@ -2059,97 +1810,6 @@ class ZakatRequest extends FormRequest
         return [
             'region.required' => 'Wilayah/Region wajib diisi.',
         ];
-    }
-}
-
-
-==================================================
-FILE: .\app\Http\Requests\Auth\LoginRequest.php
-==================================================
-
-<?php
-
-namespace App\Http\Requests\Auth;
-
-use Illuminate\Auth\Events\Lockout;
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
-
-class LoginRequest extends FormRequest
-{
-    /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
-    public function rules(): array
-    {
-        return [
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
-        ];
-    }
-
-    /**
-     * Attempt to authenticate the request's credentials.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    public function authenticate(): void
-    {
-        $this->ensureIsNotRateLimited();
-
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
-        }
-
-        RateLimiter::clear($this->throttleKey());
-    }
-
-    /**
-     * Ensure the login request is not rate limited.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    public function ensureIsNotRateLimited(): void
-    {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
-            return;
-        }
-
-        event(new Lockout($this));
-
-        $seconds = RateLimiter::availableIn($this->throttleKey());
-
-        throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
-        ]);
-    }
-
-    /**
-     * Get the rate limiting throttle key for the request.
-     */
-    public function throttleKey(): string
-    {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
     }
 }
 
@@ -2323,41 +1983,6 @@ class Post extends Model
 
     /**
  * Get the user that owns the post.
- */
-public function user()
-{
-    return $this->belongsTo(User::class);
-}
-}
-
-==================================================
-FILE: .\app\Models\Transaction.php
-==================================================
-
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class Transaction extends Model
-{
-    use HasFactory;
-
-    protected $fillable = [
-        'user_id',
-        'invoice_id',
-        'amount',
-        'description',
-        'type',
-        'category',
-        'payment_method',
-        'status',
-    ];
-
-    /**
- * Get the user that owns the transaction.
  */
 public function user()
 {
@@ -2610,7 +2235,7 @@ class AppLayout extends Component
      */
     public function render(): View
     {
-        return view('layouts.app');
+        return view('layouts.admin'); // Ubah dari 'layouts.app'
     }
 }
 
@@ -5544,351 +5169,98 @@ window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 
 ==================================================
-FILE: .\resources\views\landing.blade.php
-==================================================
-
-{{-- resources/views/landing.blade.php --}}
-@extends('layouts.public')
-
-@section('title', 'Beranda - Masjid Besar Al-Istiqomah')
-
-@section('content')
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-  {{-- HERO --}}
-  <section class="mb-8">
-    <div class="bg-white rounded-lg shadow-md overflow-hidden">
-      <div class="relative">
-        <!-- Slider/hero area -->
-        <div id="hero-slider" class="relative h-64 sm:h-96 overflow-hidden">
-          <!-- slides (replace src with your images) -->
-          <div class="slide absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-100" style="background-image:url('/images/landing/slide1.jpg')"></div>
-          <div class="slide absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image:url('/images/landing/slide2.jpg')"></div>
-          <div class="slide absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image:url('/images/landing/slide3.jpg')"></div>
-
-          <div class="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-            <div class="text-center text-white px-4">
-              <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold">Selamat Datang di {{ $masjid['title'] }}</h1>
-              <p class="mt-3 text-sm sm:text-base max-w-2xl mx-auto">Menyajikan informasi kegiatan, laporan keuangan, layanan zakat, dan layanan komunitas masjid.</p>
-              <div class="mt-6 flex items-center justify-center gap-3">
-                <a href="{{ route('zakat.index') }}" class="inline-block bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-lg font-semibold">Hitung Zakat</a>
-                <a href="{{ route('laporan.index') ?? '#' }}" class="inline-block bg-white text-gray-800 px-5 py-3 rounded-lg border">Lihat Laporan</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- WIDGETS: PRAYER TIMES + QUICK DONATE --}}
-  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-    <!-- Prayer times -->
-    <div class="lg:col-span-1 bg-white rounded-lg shadow-sm p-4">
-      <h3 class="font-semibold text-lg mb-2">Waktu Sholat Hari Ini</h3>
-      <div id="prayer-times" class="space-y-3 text-center">
-        <!-- JS akan mengisi list ini -->
-        <div class="p-3 border rounded">
-          <div class="font-medium">Subuh</div>
-          <div id="time-fajr" class="text-xl">--:--</div>
-        </div>
-        <div class="p-3 border rounded">
-          <div class="font-medium">Terbit</div>
-          <div id="time-sunrise" class="text-xl">--:--</div>
-        </div>
-        <div class="p-3 border rounded">
-          <div class="font-medium">Dzuhur</div>
-          <div id="time-dhuhr" class="text-xl">--:--</div>
-        </div>
-        <div class="p-3 border rounded">
-          <div class="font-medium">Ashar</div>
-          <div id="time-asr" class="text-xl">--:--</div>
-        </div>
-        <div class="p-3 border rounded">
-          <div class="font-medium">Maghrib</div>
-          <div id="time-maghrib" class="text-xl">--:--</div>
-        </div>
-        <div class="p-3 border rounded">
-          <div class="font-medium">Isya</div>
-          <div id="time-isha" class="text-xl">--:--</div>
-        </div>
-      </div>
-      <p class="mt-3 text-xs text-gray-500">Sumber: Aladhan API (jika tersedia) — fallback statis bila gagal.</p>
-    </div>
-
-    <!-- Quick Donate + summary -->
-    <div class="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
-      <div class="flex items-start justify-between">
-        <div>
-          <h3 class="font-semibold text-lg">Donasi Cepat</h3>
-          <p class="text-sm text-gray-600">Dukung kegiatan masjid. Pilih nominal lalu lanjutkan ke proses pembayaran.</p>
-        </div>
-        <div class="text-right">
-          <div class="text-xs text-gray-500">Terkumpul</div>
-          <div class="text-2xl font-bold text-green-600">Rp {{ number_format($donasiSummary['total_terkumpul'] ?? 0, 0, ',', '.') }}</div>
-          <div class="text-xs text-gray-500">{{ $donasiSummary['jumlah_transaksi'] ?? 0 }} transaksi</div>
-        </div>
-      </div>
-
-      <form id="quick-donate-form" action="{{ route('donasi.store') ?? '#' }}" method="POST" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-        @csrf
-        <input type="hidden" name="purpose" value="Donasi Cepat - Landing Page">
-        <div>
-          <label class="text-sm">Nama (opsional)</label>
-          <input name="nama" class="w-full border rounded px-3 py-2" placeholder="Nama">
-        </div>
-        <div>
-          <label class="text-sm">Nominal (Rp)</label>
-          <select name="jumlah" class="w-full border rounded px-3 py-2">
-            <option value="50000">Rp 50.000</option>
-            <option value="100000">Rp 100.000</option>
-            <option value="250000">Rp 250.000</option>
-            <option value="500000">Rp 500.000</option>
-            <option value="1000000">Rp 1.000.000</option>
-            <option value="0">Nominal lain...</option>
-          </select>
-        </div>
-        <div class="flex items-end">
-          <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white rounded px-4 py-2 font-semibold">Donasi Sekarang</button>
-        </div>
-      </form>
-
-      <div class="mt-4 text-sm text-gray-500">
-        <strong>Catatan:</strong> Donasi dapat dilakukan tanpa login. Pastikan email/nomor benar agar bukti dikirim.
-      </div>
-    </div>
-  </section>
-
-  {{-- SERVICES & BERITA --}}
-  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    <div class="bg-white rounded-lg shadow-sm p-6">
-      <h3 class="font-semibold text-lg mb-4">Layanan Kami</h3>
-      <ul class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <li class="p-4 border rounded">
-          <strong>Zakat</strong>
-          <p class="text-sm text-gray-600">Kalkulator & pembayaran zakat online.</p>
-        </li>
-        <li class="p-4 border rounded">
-          <strong>Donasi</strong>
-          <p class="text-sm text-gray-600">Donasi program, pembangunan, dan rutin.</p>
-        </li>
-        <li class="p-4 border rounded">
-          <strong>Rukun Kematian</strong>
-          <p class="text-sm text-gray-600">Pencatatan & iuran rukun kematian.</p>
-        </li>
-        <li class="p-4 border rounded">
-          <strong>TPQ / TPA</strong>
-          <p class="text-sm text-gray-600">Program taman pendidikan Al-Quran.</p>
-        </li>
-        <li class="p-4 border rounded">
-          <strong>Ambulans</strong>
-          <p class="text-sm text-gray-600">Layanan darurat terkoordinir.</p>
-        </li>
-        <li class="p-4 border rounded">
-          <strong>Arisan Qurban</strong>
-          <p class="text-sm text-gray-600">Program kolektif untuk qurban.</p>
-        </li>
-      </ul>
-    </div>
-
-    <div class="bg-white rounded-lg shadow-sm p-6">
-      <h3 class="font-semibold text-lg mb-4">Berita Terbaru</h3>
-      <div class="space-y-4">
-        @forelse ($beritas as $b)
-          <a href="{{ route('berita.publik.show', $b->slug) }}" class="block p-3 border rounded hover:shadow">
-            <div class="font-semibold">{{ $b->judul }}</div>
-            <div class="text-xs text-gray-500 mt-1">{{ $b->created_at->format('d F Y') }}</div>
-          </a>
-        @empty
-          <p class="text-gray-500">Belum ada berita terbaru.</p>
-        @endforelse
-      </div>
-    </div>
-  </section>
-
-  {{-- MAP + CONTACT --}}
-  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-    <div class="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
-      <h3 class="font-semibold text-lg mb-4">Lokasi Masjid</h3>
-      <div class="w-full h-64 rounded overflow-hidden border">
-        <!-- embed Google Maps via iframe. Replace src below with your iframe src if you have full embed link -->
-        <iframe
-          src="https://www.google.com/maps?q={{ urlencode($masjid['address']) }}&output=embed"
-          class="w-full h-full" frameborder="0" allowfullscreen></iframe>
-      </div>
-    </div>
-
-    <aside class="bg-white rounded-lg shadow-sm p-6">
-      <h3 class="font-semibold text-lg">Kontak & Media</h3>
-      <p class="mt-2"><strong>Alamat</strong><br>{{ $masjid['address'] }}</p>
-      <p class="mt-2"><strong>Telp/WA</strong><br>{{ $masjid['phone'] }}</p>
-      <p class="mt-2"><strong>Email</strong><br>{{ $masjid['email'] }}</p>
-
-      <div class="mt-4 space-x-2">
-        <a href="{{ $masjid['instagram'] }}" target="_blank" class="inline-block text-sm px-3 py-1 border rounded">Instagram</a>
-        <a href="{{ $masjid['facebook'] }}" target="_blank" class="inline-block text-sm px-3 py-1 border rounded">Facebook</a>
-        <a href="{{ $masjid['youtube'] }}" target="_blank" class="inline-block text-sm px-3 py-1 border rounded">YouTube</a>
-      </div>
-    </aside>
-  </section>
-
-</div>
-
-{{-- Footer --}}
-<footer class="bg-gray-50 border-t mt-8">
-  <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div>
-        <h4 class="font-semibold">{{ $masjid['title'] }}</h4>
-        <p class="text-sm text-gray-600 mt-2">{{ $masjid['address'] }}</p>
-        <p class="text-sm text-gray-600 mt-1">Telp/WA: {{ $masjid['phone'] }}</p>
-        <p class="text-sm text-gray-600 mt-1">Email: {{ $masjid['email'] }}</p>
-      </div>
-      <div>
-        <h4 class="font-semibold">Layanan</h4>
-        <ul class="mt-2 text-sm text-gray-600 space-y-1">
-          <li><a href="{{ route('zakat.index') }}">Kalkulator Zakat</a></li>
-          <li><a href="{{ route('donasi.create') }}">Donasi</a></li>
-          <li><a href="#">Rukun Kematian</a></li>
-          <li><a href="#">TPQ / TPA</a></li>
-          <li><a href="#">Arisan Qurban</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4 class="font-semibold">Ikuti Kami</h4>
-        <div class="mt-2 flex gap-2">
-          <a href="{{ $masjid['instagram'] }}" target="_blank" class="text-sm px-3 py-1 rounded border">Instagram</a>
-          <a href="{{ $masjid['facebook'] }}" target="_blank" class="text-sm px-3 py-1 rounded border">Facebook</a>
-          <a href="{{ $masjid['youtube'] }}" target="_blank" class="text-sm px-3 py-1 rounded border">YouTube</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="mt-6 text-center text-xs text-gray-500">
-      © {{ date('Y') }} {{ $masjid['title'] }} — Semua hak dilindungi.
-    </div>
-  </div>
-</footer>
-@endsection
-
-@section('scripts')
-<script>
-/*
-  1) Slider: simple fade slider (vanilla JS)
-*/
-(function() {
-  const slides = document.querySelectorAll('#hero-slider .slide');
-  if (!slides.length) return;
-  let idx = 0;
-  setInterval(() => {
-    slides[idx].classList.remove('opacity-100'); slides[idx].classList.add('opacity-0');
-    idx = (idx + 1) % slides.length;
-    slides[idx].classList.remove('opacity-0'); slides[idx].classList.add('opacity-100');
-  }, 4500);
-})();
-
-/*
-  2) Prayer times: try Aladhan API by city (Loa Janan, Indonesia) fallback static times
-*/
-(function(){
-  const city = 'Loa Janan';
-  const country = 'Indonesia';
-  const method = 2; // Muslim World League or change as desired
-
-  function fill(times) {
-    document.getElementById('time-fajr').textContent = times.Fajr || '--:--';
-    document.getElementById('time-sunrise').textContent = times.Sunrise || '--:--';
-    document.getElementById('time-dhuhr').textContent = times.Dhuhr || '--:--';
-    document.getElementById('time-asr').textContent = times.Asr || '--:--';
-    document.getElementById('time-maghrib').textContent = times.Maghrib || '--:--';
-    document.getElementById('time-isha').textContent = times.Isha || '--:--';
-  }
-
-  // fallback static schedule (local default) if API fails
-  const fallback = {
-    Fajr: '04:30', Sunrise: '06:00', Dhuhr: '12:00', Asr: '15:15', Maghrib: '18:00', Isha: '19:15'
-  };
-
-  fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}&method=${method}`)
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.data && data.data.timings) {
-        fill(data.data.timings);
-      } else {
-        fill(fallback);
-      }
-    })
-    .catch(err => {
-      console.warn('Aladhan API failed, using fallback times', err);
-      fill(fallback);
-    });
-})();
-
-</script>
-@endsection
-
-
-==================================================
 FILE: .\resources\views\admin\dashboard.blade.php
 ==================================================
 
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Dashboard') }}
+            {{ __('Dashboard & Ikhtisar Keuangan') }}
         </h2>
     </x-slot>
 
-    <div class="max-w-6xl mx-auto py-10 px-4">
-    <h2 class="text-2xl font-semibold text-gray-800 mb-6">Selamat Datang, {{ Auth::user()->name }}</h2>
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            
+            {{-- Widget Utama (Statistik) --}}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 border-green-500">
+                    <div class="text-gray-500 text-sm font-medium uppercase">Total Zakat Terkumpul</div>
+                    <div class="mt-2 text-2xl font-bold text-gray-900">
+                        Rp {{ number_format($totalZakat, 0, ',', '.') }}
+                    </div>
+                    <a href="{{ route('admin.zakat.index') }}" class="text-xs text-green-600 hover:underline mt-2 block">Lihat Rincian &rarr;</a>
+                </div>
 
-    {{-- Widget Harga Emas --}}
-    <div class="bg-white shadow-sm border border-gray-100 rounded-lg p-5 mb-8 flex flex-col md:flex-row justify-between items-center">
-      <div>
-        <h3 class="text-lg font-semibold text-gray-700 flex items-center gap-2">
-          💰 Harga Emas Saat Ini
-        </h3>
-        <p class="text-3xl font-bold text-yellow-600 mt-2 transition-all duration-300 hover:scale-[1.02]">
-          Rp {{ number_format(app(\App\Services\GoldPriceService::class)->getGoldPrice(), 0, ',', '.') }}
-        </p>
-        <p class="text-sm text-gray-500 mt-1">(cache otomatis 1 jam)</p>
-      </div>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 border-blue-500">
+                    <div class="text-gray-500 text-sm font-medium uppercase">Total Donasi Masuk</div>
+                    <div class="mt-2 text-2xl font-bold text-gray-900">
+                        Rp {{ number_format($totalDonasi, 0, ',', '.') }}
+                    </div>
+                    <a href="{{ route('admin.donasi.laporan') }}" class="text-xs text-blue-600 hover:underline mt-2 block">Lihat Rincian &rarr;</a>
+                </div>
 
-      <form action="{{ route('admin.harga-emas.refresh') }}" method="POST" class="mt-4 md:mt-0">
-        @csrf
-        <button class="bg-yellow-500 hover:bg-yellow-600 text-white font-medium px-4 py-2 rounded shadow transition transition-all duration-300 hover:scale-[1.02]">
-          🔄 Perbarui
-        </button>
-      </form>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 border-indigo-500">
+                    <div class="text-gray-500 text-sm font-medium uppercase">Saldo Kas Operasional</div>
+                    <div class="mt-2 text-2xl font-bold text-gray-900">
+                        Rp {{ number_format($saldoOps, 0, ',', '.') }}
+                    </div>
+                    <a href="{{ route('admin.transaksi.index') }}" class="text-xs text-indigo-600 hover:underline mt-2 block">Kelola Kas &rarr;</a>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 border-yellow-400">
+                    <div class="text-gray-500 text-sm font-medium uppercase">Harga Emas (Per Gram)</div>
+                    <div class="mt-2 text-2xl font-bold text-yellow-600">
+                        Rp {{ number_format($hargaEmas, 0, ',', '.') }}
+                    </div>
+                    <div class="mt-2 text-xs text-gray-400 flex justify-between items-center">
+                        <span>Live Update</span>
+                        <form action="{{ route('admin.harga-emas.refresh') }}" method="POST">
+                            @csrf
+                            <button class="text-yellow-600 hover:text-yellow-800 font-semibold">🔄 Refresh</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Bagian Navigasi Cepat (Shortcut) --}}
+            <h3 class="text-lg font-semibold text-gray-700 mb-4">Menu Cepat</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="{{ route('admin.berita.create') }}" class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition flex items-center gap-4 group">
+                    <div class="bg-blue-100 p-3 rounded-full text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition">
+                        📝
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-800">Tulis Berita Baru</div>
+                        <div class="text-sm text-gray-500">Publikasikan kegiatan masjid</div>
+                    </div>
+                </a>
+
+                <a href="{{ route('admin.transaksi.create') }}" class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition flex items-center gap-4 group">
+                    <div class="bg-green-100 p-3 rounded-full text-green-600 group-hover:bg-green-600 group-hover:text-white transition">
+                        💰
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-800">Catat Transaksi</div>
+                        <div class="text-sm text-gray-500">Input pemasukan/pengeluaran kas</div>
+                    </div>
+                </a>
+                
+                 <a href="{{ route('home') }}" target="_blank" class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition flex items-center gap-4 group">
+                    <div class="bg-gray-100 p-3 rounded-full text-gray-600 group-hover:bg-gray-800 group-hover:text-white transition">
+                        🌐
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-800">Lihat Website</div>
+                        <div class="text-sm text-gray-500">Buka halaman depan publik</div>
+                    </div>
+                </a>
+            </div>
+
+        </div>
     </div>
-
-    {{-- Konten dashboard lain --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-      {{--Laporan Keuangan  --}}
-      <div class="bg-white rounded-lg shadow p-6 transition-all duration-300 hover:scale-[1.02]">
-        <h4 class="text-lg font-semibold mb-2">📈 Laporan Keuangan</h4>
-        <p class="text-gray-600 text-sm">Kelola dan pantau arus kas Masjid.</p>
-        <a href="{{ route('admin.transaksi.index') }}" class="text-blue-600 hover:underline mt-3 inline-block text-sm transition-all duration-300 hover:scale-[1.02]">Lihat Detail →</a>
-      </div>
-
-      {{--Manajemen Berita--}}
-      <div class="bg-white rounded-lg shadow p-6 transition-all duration-300 hover:scale-[1.02]">
-        <h4 class="text-lg font-semibold mb-2">📰 Manajemen Berita</h4>
-        <p class="text-gray-600 text-sm">Publikasikan berita kegiatan dan pengumuman.</p>
-        <a href="{{ route('admin.berita.index') }}" class="text-blue-600 hover:underline mt-3 inline-block text-sm transition-all duration-300 hover:scale-[1.02]">Kelola Berita →</a>
-      </div>
-
-        {{--Laporan Donasi--}} 
-      <div class="bg-white rounded-lg shadow p-6 transition-all duration-300 hover:scale-[1.02]">
-        <h4 class="text-lg font-semibold mb-2">💝 Laporan Donasi</h4>
-        <p class="text-gray-600 text-sm">Pantau donasi jamaah dan sumber dana.</p>
-        <a href="{{ route('admin.donasi.laporan') }}" class="text-blue-600 hover:underline mt-3 inline-block text-smtransition-all duration-300 hover:scale-[1.02]">Lihat Donasi →</a>
-      </div>
-    </div>
-  </div>
 </x-app-layout>
-
 
 ==================================================
 FILE: .\resources\views\admin\harga-emas-history.blade.php
@@ -6772,398 +6144,234 @@ FILE: .\resources\views\admin\laporan\index.blade.php
 
 
 ==================================================
-FILE: .\resources\views\auth\confirm-password.blade.php
+FILE: .\resources\views\admin\zakat\index.blade.php
 ==================================================
 
-<x-guest-layout>
-
-    <!-- Bungkus Form dalam Card yang Rapi -->
-    <div class="w-full max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-
-        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-6">
-            Area Aman
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+            {{ __('Laporan Zakat Masuk') }}
         </h2>
+    </x-slot>
 
-        <div class="mb-6 text-sm text-center text-gray-600 dark:text-gray-400">
-            {{ __('Ini adalah area aman aplikasi. Mohon konfirmasi password Anda sebelum melanjutkan.') }}
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-6 text-gray-900">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        {{-- Filter --}}
+                        <form method="GET" class="mb-6 flex gap-4">
+                            <select name="jenis" class="border-gray-300 rounded-md shadow-sm" onchange="this.form.submit()">
+                                <option value="">Semua Jenis</option>
+                                <option value="profesi" {{ request('jenis') == 'profesi' ? 'selected' : '' }}>Profesi</option>
+                                <option value="maal" {{ request('jenis') == 'maal' ? 'selected' : '' }}>Maal</option>
+                                <option value="perniagaan" {{ request('jenis') == 'perniagaan' ? 'selected' : '' }}>Perniagaan</option>
+                            </select>
+                            
+                            <select name="status" class="border-gray-300 rounded-md shadow-sm" onchange="this.form.submit()">
+                                <option value="">Semua Status</option>
+                                <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Berhasil (Paid)</option>
+                                <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                            </select>
+                        </form>
+                    
+                    {{-- Tombol Export --}}
+                    <a href="{{ route('admin.zakat.export', request()->all()) }}" 
+                    class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 focus:bg-green-700 active:bg-green-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                    📥 Export Excel
+                    </a>
+                </div>
+                
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Muzakki (Nama)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Jenis</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @forelse($zakats as $z)
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ $z->created_at->format('d M Y') }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">{{ $z->nama ?? 'Hamba Allah' }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            {{ ucfirst($z->jenis) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold">
+                                        Rp {{ number_format($z->jumlah, 0, ',', '.') }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                                        @if($z->status == 'paid')
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Paid</span>
+                                        @elseif($z->status == 'pending')
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                                        @else
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">{{ ucfirst($z->status) }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm flex justify-center gap-2">
+                                        {{-- Tombol Lihat Detail --}}
+                                        <a href="{{ route('admin.zakat.show', $z) }}" class="text-gray-600 hover:text-blue-600" title="Lihat Detail">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </a>
+
+                                        {{-- Tombol Set Lunas (Hanya jika pending) --}}
+                                        @if($z->status == 'pending')
+                                        <form action="{{ route('admin.zakat.update-status', $z) }}" method="POST" onsubmit="return confirm('Ubah status ke Paid manual?')">
+                                            @csrf @method('PATCH')
+                                            <input type="hidden" name="status" value="paid">
+                                            <button class="text-green-600 hover:text-green-900" title="Set Lunas">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                </svg>
+                                            </button>
+                                        </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="6" class="text-center p-4 text-gray-500">Belum ada data zakat.</td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ $zakats->links() }}
+                    </div>
+
+                </div>
+            </div>
         </div>
-
-        <form method="POST" action="{{ route('password.confirm') }}" class="space-y-6">
-            @csrf
-
-            <!-- Password -->
-            <div>
-                <x-input-label for="password" :value="__('Password')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="password" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600"
-                              type="password"
-                              name="password"
-                              required 
-                              autocomplete="current-password"
-                              placeholder="Masukkan password Anda" />
-                <x-input-error :messages="$errors->get('password')" class="mt-2" />
-            </div>
-
-            <!-- Tombol Konfirmasi -->
-            <div class="flex justify-end mt-4 pt-4">
-                <x-primary-button class="w-full justify-center py-3.5 text-base font-semibold">
-                    {{ __('Konfirmasi') }}
-                </x-primary-button>
-            </div>
-        </form>
     </div>
-</x-guest-layout>
+</x-app-layout>
 
 ==================================================
-FILE: .\resources\views\auth\forgot-password.blade.php
+FILE: .\resources\views\admin\zakat\show.blade.php
 ==================================================
 
-<x-guest-layout>
-
-    <!-- Bungkus Form dalam Card yang Rapi -->
-    <div class="w-full max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-
-        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-6">
-            Lupa Password?
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+            {{ __('Detail Zakat') }} #{{ $zakat->order_id }}
         </h2>
+    </x-slot>
 
-        <div class="mb-6 text-sm text-center text-gray-600 dark:text-gray-400">
-            {{ __('Tidak masalah. Beri tahu kami alamat email Anda dan kami akan mengirimkan link untuk mengatur ulang password Anda.') }}
-        </div>
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            
+            {{-- Tombol Kembali --}}
+            <a href="{{ route('admin.zakat.index') }}" class="inline-flex items-center mb-4 text-gray-600 hover:text-gray-900 transition">
+                &larr; Kembali ke Daftar
+            </a>
 
-        <!-- Session Status -->
-        <!-- Ini akan muncul setelah email terkirim -->
-        <x-auth-session-status class="mb-4" :status="session('status')" />
-
-        <form method="POST" action="{{ route('password.email') }}" class="space-y-6">
-            @csrf
-
-            <!-- Email Address -->
-            <div>
-                <x-input-label for="email" :value="__('Email Anda')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="email" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600" 
-                              type="email" 
-                              name="email" 
-                              :value="old('email')" 
-                              required 
-                              autofocus 
-                              placeholder="Masukkan email terdaftar Anda" />
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
-            </div>
-
-            <!-- Tombol Kirim Link -->
-            <div class="flex items-center justify-end mt-4 pt-4">
-                <x-primary-button class="w-full justify-center py-3.5 text-base font-semibold">
-                    {{ __('Kirim Link Reset Password') }}
-                </x-primary-button>
-            </div>
-
-            <!-- Link kembali ke Login -->
-            <div class="text-sm text-center text-gray-600 dark:text-gray-400 pt-4 border-t dark:border-gray-700">
-                <a class="underline hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('login') }}">
-                    {{ __('Kembali ke Login') }}
-                </a>
-            </div>
-
-        </form>
-    </div>
-</x-guest-layout>
-
-==================================================
-FILE: .\resources\views\auth\login.blade.php
-==================================================
-
-<x-guest-layout>
-
-    <!-- Bungkus Form dalam Card yang Rapi -->
-    <div class="w-full max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-
-        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-8">
-            Login
-        </h2>
-
-        <!-- Session Status -->
-        <!-- Ini sudah ada di kodemu, bagus untuk memberi feedback -->
-        <x-auth-session-status class="mb-4" :status="session('status')" />
-
-        <form method="POST" action="{{ route('login') }}" class="space-y-6">
-            @csrf
-
-            <!-- Alamat Email -->
-            <div>
-                <x-input-label for="email" :value="__('Email')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="email" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600" 
-                              type="email" 
-                              name="email" 
-                              :value="old('email')" 
-                              required 
-                              autofocus 
-                              autocomplete="username" 
-                              placeholder="nama@email.com" />
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
-            </div>
-
-            <!-- Password -->
-            <div class="mt-4">
-                <x-input-label for="password" :value="__('Password')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="password" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600"
-                              type="password"
-                              name="password"
-                              required 
-                              autocomplete="current-password"
-                              placeholder="••••••••" />
-                <x-input-error :messages="$errors->get('password')" class="mt-2" />
-            </div>
-
-            <!-- Remember Me & Forgot Password -->
-            <div class="flex items-center justify-between mt-4">
-                <div class="block">
-                    <label for="remember_me" class="inline-flex items-center">
-                        <input id="remember_me" type="checkbox" class="rounded dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:focus:ring-offset-gray-800" name="remember">
-                        <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('Remember me') }}</span>
-                    </label>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {{-- KOLOM KIRI: Informasi Utama --}}
+                <div class="lg:col-span-2 bg-white shadow sm:rounded-lg overflow-hidden">
+                    <div class="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">Informasi Muzakki</h3>
+                        <p class="mt-1 max-w-2xl text-sm text-gray-500">Detail personal dan jenis zakat.</p>
+                    </div>
+                    <div class="border-t border-gray-200 px-4 py-5 sm:p-0">
+                        <dl class="sm:divide-y sm:divide-gray-200">
+                            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                                <dt class="text-sm font-medium text-gray-500">Nama Lengkap</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ $zakat->nama ?? 'Hamba Allah' }}</dd>
+                            </div>
+                            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                                <dt class="text-sm font-medium text-gray-500">Email</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ $zakat->email ?? '-' }}</dd>
+                            </div>
+                            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                                <dt class="text-sm font-medium text-gray-500">Nomor Telepon</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ $zakat->phone ?? '-' }}</dd>
+                            </div>
+                            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                                <dt class="text-sm font-medium text-gray-500">Jenis Zakat</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 capitalize bg-blue-100 text-blue-800 px-2 py-0.5 rounded inline-block text-xs font-semibold">
+                                    {{ $zakat->jenis }}
+                                </dd>
+                            </div>
+                            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                                <dt class="text-sm font-medium text-gray-500">Keterangan Tambahan</dt>
+                                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ $zakat->keterangan ?? '-' }}</dd>
+                            </div>
+                            @if($zakat->nominal_perhitungan)
+                            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6 bg-gray-50">
+                                <dt class="text-sm font-medium text-gray-500">Hasil Kalkulator</dt>
+                                <dd class="mt-1 text-sm text-gray-700 sm:mt-0 sm:col-span-2">
+                                    Rp {{ number_format($zakat->nominal_perhitungan, 0, ',', '.') }}
+                                    <span class="text-xs text-gray-500 block">(Ini adalah angka saran dari kalkulator saat user menghitung)</span>
+                                </dd>
+                            </div>
+                            @endif
+                        </dl>
+                    </div>
                 </div>
 
-                @if (Route::has('password.request'))
-                    <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('password.request') }}">
-                        {{ __('Forgot your password?') }}
-                    </a>
-                @endif
-            </div>
+                {{-- KOLOM KANAN: Informasi Pembayaran & Status --}}
+                <div class="space-y-6">
+                    
+                    {{-- Card Status --}}
+                    <div class="bg-white shadow sm:rounded-lg p-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Status Pembayaran</h3>
+                        <div class="text-center py-4">
+                            <div class="text-3xl font-bold text-gray-900 mb-2">
+                                Rp {{ number_format($zakat->jumlah, 0, ',', '.') }}
+                            </div>
+                            
+                            @if($zakat->status == 'paid')
+                                <span class="px-4 py-2 rounded-full bg-green-100 text-green-800 font-bold text-sm">LUNAS (PAID)</span>
+                            @elseif($zakat->status == 'pending')
+                                <span class="px-4 py-2 rounded-full bg-yellow-100 text-yellow-800 font-bold text-sm">PENDING</span>
+                            @else
+                                <span class="px-4 py-2 rounded-full bg-red-100 text-red-800 font-bold text-sm uppercase">{{ $zakat->status }}</span>
+                            @endif
 
-            <!-- Tombol Login (Dibuat full-width) -->
-            <div class="flex items-center justify-end mt-4 pt-4">
-                <x-primary-button class="w-full justify-center py-3.5 text-base font-semibold">
-                    {{ __('Log in') }}
-                </x-primary-button>
-            </div>
+                            <p class="mt-4 text-sm text-gray-500">Tanggal: {{ $zakat->created_at->format('d F Y H:i') }}</p>
+                        </div>
 
-            <!-- Link ke Register (Opsional, tapi direkomendasikan) -->
-            @if (Route::has('register'))
-                <p class="text-sm text-center text-gray-600 dark:text-gray-400 pt-4 border-t dark:border-gray-700">
-                    Belum punya akun?
-                    <a href="{{ route('register') }}" class="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 underline">
-                        Daftar di sini
-                    </a>
-                </p>
-            @endif
+                        @if($zakat->status == 'pending')
+                        <div class="mt-6 pt-6 border-t">
+                            <form action="{{ route('admin.zakat.update-status', $zakat) }}" method="POST">
+                                @csrf @method('PATCH')
+                                <input type="hidden" name="status" value="paid">
+                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow" onclick="return confirm('Konfirmasi pembayaran ini secara manual?')">
+                                    Verifikasi Manual (Set Lunas)
+                                </button>
+                                <p class="text-xs text-gray-400 mt-2 text-center">Gunakan tombol ini jika Muzakki membayar tunai atau transfer manual.</p>
+                            </form>
+                        </div>
+                        @endif
+                    </div>
 
-        </form>
-    </div>
-</x-guest-layout>
+                    {{-- Card Data Teknis Midtrans (Untuk Debugging) --}}
+                    <div class="bg-white shadow sm:rounded-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-900 mb-2">Data Teknis (Midtrans)</h3>
+                        <div class="bg-gray-900 rounded p-3 overflow-x-auto">
+                            <pre class="text-xs text-green-400 font-mono">{{ json_encode($zakat->midtrans_response, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
+                        </div>
+                    </div>
 
-==================================================
-FILE: .\resources\views\auth\register.blade.php
-==================================================
-
-<x-guest-layout>
-
-    <!-- Bungkus Form dalam Card yang Rapi -->
-    <div class="w-full max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-
-        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-8">
-            Daftar Akun Baru
-        </h2>
-
-        <form method="POST" action="{{ route('register') }}" class="space-y-6">
-            @csrf
-
-            <!-- Name -->
-            <div>
-                <x-input-label for="name" :value="__('Nama Lengkap')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="name" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600" 
-                              type="text" 
-                              name="name" 
-                              :value="old('name')" 
-                              required 
-                              autofocus 
-                              autocomplete="name" 
-                              placeholder="Nama Anda" />
-                <x-input-error :messages="$errors->get('name')" class="mt-2" />
-            </div>
-
-            <!-- Email Address -->
-            <div class="mt-4">
-                <x-input-label for="email" :value="__('Email')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="email" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600" 
-                              type="email" 
-                              name="email" 
-                              :value="old('email')" 
-                              required 
-                              autocomplete="username" 
-                              placeholder="nama@email.com" />
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
-            </div>
-
-            <!-- Password -->
-            <div class="mt-4">
-                <x-input-label for="password" :value="__('Password')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="password" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600"
-                              type="password"
-                              name="password"
-                              required 
-                              autocomplete="new-password"
-                              placeholder="Buat password (min. 8 karakter)" />
-                <x-input-error :messages="$errors->get('password')" class="mt-2" />
-            </div>
-
-            <!-- Confirm Password -->
-            <div class="mt-4">
-                <x-input-label for="password_confirmation" :value="__('Konfirmasi Password')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="password_confirmation" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600"
-                              type="password"
-                              name="password_confirmation" 
-                              required 
-                              autocomplete="new-password"
-                              placeholder="Ketik ulang password Anda" />
-                <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-            </div>
-
-            <!-- Tombol Register (Full-width) -->
-            <div class="flex items-center justify-end mt-4 pt-4">
-                <x-primary-button class="w-full justify-center py-3.5 text-base font-semibold">
-                    {{ __('Register') }}
-                </x-primary-button>
-            </div>
-
-            <!-- Link ke Login -->
-            <div class="text-sm text-center text-gray-600 dark:text-gray-400 pt-4 border-t dark:border-gray-700">
-                <a class="underline hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('login') }}">
-                    {{ __('Sudah terdaftar? Login di sini') }}
-                </a>
-            </div>
-
-        </form>
-    </div>
-</x-guest-layout>
-
-==================================================
-FILE: .\resources\views\auth\reset-password.blade.php
-==================================================
-
-<x-guest-layout>
-
-    <!-- Bungkus Form dalam Card yang Rapi -->
-    <div class="w-full max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-
-        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-8">
-            Atur Ulang Password
-        </h2>
-
-        <form method="POST" action="{{ route('password.store') }}" class="space-y-6">
-            @csrf
-
-            <!-- Password Reset Token -->
-            <input type="hidden" name="token" value="{{ $request->route('token') }}">
-
-            <!-- Email Address (Otomatis terisi) -->
-            <div>
-                <x-input-label for="email" :value="__('Email')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="email" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600" 
-                              type="email" 
-                              name="email" 
-                              :value="old('email', $request->email)" 
-                              required 
-                              autofocus 
-                              autocomplete="username" 
-                              placeholder="nama@email.com" />
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
-            </div>
-
-            <!-- Password Baru -->
-            <div class="mt-4">
-                <x-input-label for="password" :value="__('Password Baru')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="password" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600" 
-                              type="password" 
-                              name="password" 
-                              required 
-                              autocomplete="new-password" 
-                              placeholder="Masukkan password baru Anda" />
-                <x-input-error :messages="$errors->get('password')" class="mt-2" />
-            </div>
-
-            <!-- Konfirmasi Password Baru -->
-            <div class="mt-4">
-                <x-input-label for="password_confirmation" :value="__('Konfirmasi Password Baru')" class="mb-2 text-sm font-medium" />
-                <x-text-input id="password_confirmation" 
-                              class="block mt-1 w-full px-4 py-3 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600"
-                              type="password"
-                              name="password_confirmation" 
-                              required 
-                              autocomplete="new-password"
-                              placeholder="Ketik ulang password baru Anda" />
-                <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-            </div>
-
-            <!-- Tombol Reset -->
-            <div class="flex items-center justify-end mt-4 pt-4">
-                <x-primary-button class="w-full justify-center py-3.5 text-base font-semibold">
-                    {{ __('Reset Password') }}
-                </x-primary-button>
-            </div>
-        </form>
-
-    </div>
-</x-guest-layout>
-
-==================================================
-FILE: .\resources\views\auth\verify-email.blade.php
-==================================================
-
-<x-guest-layout>
-
-    <!-- Bungkus Form dalam Card yang Rapi -->
-    <div class="w-full max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
-
-        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-6">
-            Verifikasi Email Anda
-        </h2>
-
-        <div class="mb-6 text-sm text-center text-gray-600 dark:text-gray-400">
-            {{ __('Terima kasih telah mendaftar! Sebelum memulai, bisakah Anda memverifikasi alamat email Anda dengan mengeklik link yang baru saja kami kirimkan? Jika Anda tidak menerima email, kami akan dengan senang hati mengirimkan yang lain.') }}
-        </div>
-
-        <!-- Status saat link baru saja dikirim -->
-        @if (session('status') == 'verification-link-sent')
-            <div class="mb-6 font-medium text-sm text-center text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900 border border-green-300 dark:border-green-700 rounded-lg p-4">
-                {{ __('Link verifikasi baru telah dikirimkan ke alamat email yang Anda berikan saat pendaftaran.') }}
-            </div>
-        @endif
-
-        <!-- Tombol Aksi -->
-        <div class="mt-6 space-y-4">
-            <!-- Tombol Kirim Ulang -->
-            <form method="POST" action="{{ route('verification.send') }}">
-                @csrf
-                <div>
-                    <x-primary-button class="w-full justify-center py-3.5 text-base font-semibold">
-                        {{ __('Kirim Ulang Email Verifikasi') }}
-                    </x-primary-button>
                 </div>
-            </form>
 
-            <!-- Tombol Logout -->
-            <div class="text-center">
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
-                        {{ __('Keluar (Log Out)') }}
-                    </button>
-                </form>
             </div>
         </div>
-
     </div>
-</x-guest-layout>
+</x-app-layout>
 
 ==================================================
 FILE: .\resources\views\components\application-logo.blade.php
@@ -7457,7 +6665,411 @@ FILE: .\resources\views\components\text-input.blade.php
 
 
 ==================================================
-FILE: .\resources\views\donasi\bukti.blade.php
+FILE: .\resources\views\front\landing.blade.php
+==================================================
+
+{{-- resources/views/landing.blade.php --}}
+@extends('layouts.public')
+
+@section('title', 'Beranda - Masjid Besar Al-Istiqomah')
+
+@section('content')
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  {{-- HERO --}}
+  <section class="mb-8">
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+      <div class="relative">
+        <!-- Slider/hero area -->
+        <div id="hero-slider" class="relative h-64 sm:h-96 overflow-hidden">
+          <!-- slides (replace src with your images) -->
+          <div class="slide absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-100" style="background-image:url('/images/landing/slide1.jpg')"></div>
+          <div class="slide absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image:url('/images/landing/slide2.jpg')"></div>
+          <div class="slide absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image:url('/images/landing/slide3.jpg')"></div>
+
+          <div class="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+            <div class="text-center text-white px-4">
+              <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold">Selamat Datang di {{ $masjid['title'] }}</h1>
+              <p class="mt-3 text-sm sm:text-base max-w-2xl mx-auto">Menyajikan informasi kegiatan, laporan keuangan, layanan zakat, dan layanan komunitas masjid.</p>
+              <div class="mt-6 flex items-center justify-center gap-3">
+                <a href="{{ route('zakat.index') }}" class="inline-block bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-lg font-semibold">Hitung Zakat</a>
+                <a href="{{ route('front.laporan.index') ?? '#' }}" class="inline-block bg-white text-gray-800 px-5 py-3 rounded-lg border">Lihat Laporan</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {{-- WIDGETS: PRAYER TIMES + QUICK DONATE --}}
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Prayer times -->
+    <div class="lg:col-span-1 bg-white rounded-lg shadow-sm p-4">
+      <h3 class="font-semibold text-lg mb-2">Waktu Sholat Hari Ini</h3>
+      <div id="prayer-times" class="space-y-3 text-center">
+        <!-- JS akan mengisi list ini -->
+        <div class="p-3 border rounded">
+          <div class="font-medium">Subuh</div>
+          <div id="time-fajr" class="text-xl">--:--</div>
+        </div>
+        <div class="p-3 border rounded">
+          <div class="font-medium">Terbit</div>
+          <div id="time-sunrise" class="text-xl">--:--</div>
+        </div>
+        <div class="p-3 border rounded">
+          <div class="font-medium">Dzuhur</div>
+          <div id="time-dhuhr" class="text-xl">--:--</div>
+        </div>
+        <div class="p-3 border rounded">
+          <div class="font-medium">Ashar</div>
+          <div id="time-asr" class="text-xl">--:--</div>
+        </div>
+        <div class="p-3 border rounded">
+          <div class="font-medium">Maghrib</div>
+          <div id="time-maghrib" class="text-xl">--:--</div>
+        </div>
+        <div class="p-3 border rounded">
+          <div class="font-medium">Isya</div>
+          <div id="time-isha" class="text-xl">--:--</div>
+        </div>
+      </div>
+      <p class="mt-3 text-xs text-gray-500">Sumber: Aladhan API (jika tersedia) — fallback statis bila gagal.</p>
+    </div>
+
+    <!-- Quick Donate + summary -->
+    <div class="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
+      <div class="flex items-start justify-between">
+        <div>
+          <h3 class="font-semibold text-lg">Donasi Cepat</h3>
+          <p class="text-sm text-gray-600">Dukung kegiatan masjid. Pilih nominal lalu lanjutkan ke proses pembayaran.</p>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-gray-500">Terkumpul</div>
+          <div class="text-2xl font-bold text-green-600">Rp {{ number_format($donasiSummary['total_terkumpul'] ?? 0, 0, ',', '.') }}</div>
+          <div class="text-xs text-gray-500">{{ $donasiSummary['jumlah_transaksi'] ?? 0 }} transaksi</div>
+        </div>
+      </div>
+
+      {{-- Quick Donate Form --}}
+      <form id="quick-donate-form" action="{{ route('donasi.store') ?? '#' }}" method="POST" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        @csrf
+        <input type="hidden" name="purpose" value="Donasi Cepat - Landing Page">
+        <div>
+          <label class="text-sm">Nama (opsional)</label>
+          <input name="nama" class="w-full border rounded px-3 py-2" placeholder="Hamba Allah">
+        </div>
+        <div>
+          <label class="text-sm">Nominal (Rp)</label>
+          <select name="jumlah" class="w-full border rounded px-3 py-2">
+            <option value="10000">Rp 10.000</option>
+            <option value="15000">Rp 15.000</option>
+            <option value="25000">Rp 25.000</option>
+            <option value="50000">Rp 50.000</option>
+            <option value="100000">Rp 100.000</option>
+            <option value="0">Nominal lain...</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white rounded px-4 py-2 font-semibold">Donasi Sekarang</button>
+        </div>
+      </form>
+
+      <div class="mt-4 text-sm text-gray-500">
+        <strong>Catatan:</strong> Donasi dapat dilakukan tanpa login. Pastikan email/nomor benar agar bukti dikirim.
+      </div>
+    </div>
+  </section>
+
+  {{-- SERVICES & BERITA --}}
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow-sm p-6">
+      <h3 class="font-semibold text-lg mb-4">Layanan Kami</h3>
+      <ul class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <li class="p-4 border rounded">
+          <strong>Zakat</strong>
+          <p class="text-sm text-gray-600">Kalkulator & pembayaran zakat online.</p>
+        </li>
+        <li class="p-4 border rounded">
+          <strong>Donasi</strong>
+          <p class="text-sm text-gray-600">Donasi program, pembangunan, dan rutin.</p>
+        </li>
+        <li class="p-4 border rounded">
+          <strong>Rukun Kematian</strong>
+          <p class="text-sm text-gray-600">Pencatatan & iuran rukun kematian.</p>
+        </li>
+        <li class="p-4 border rounded">
+          <strong>TPQ / TPA</strong>
+          <p class="text-sm text-gray-600">Program taman pendidikan Al-Quran.</p>
+        </li>
+        <li class="p-4 border rounded">
+          <strong>Ambulans</strong>
+          <p class="text-sm text-gray-600">Layanan darurat terkoordinir.</p>
+        </li>
+        <li class="p-4 border rounded">
+          <strong>Arisan Qurban</strong>
+          <p class="text-sm text-gray-600">Program kolektif untuk qurban.</p>
+        </li>
+      </ul>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm p-6">
+      <h3 class="font-semibold text-lg mb-4">Berita Terbaru</h3>
+      <div class="space-y-4">
+        @forelse ($beritas as $b)
+          <a href="{{ route('front.berita.show', $b->slug) }}" class="block p-3 border rounded hover:shadow">
+            <div class="font-semibold">{{ $b->judul }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ $b->created_at->format('d F Y') }}</div>
+          </a>
+        @empty
+          <p class="text-gray-500">Belum ada berita terbaru.</p>
+        @endforelse
+      </div>
+    </div>
+  </section>
+
+  {{-- MAP + CONTACT --}}
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
+      <h3 class="font-semibold text-lg mb-4">Lokasi Masjid</h3>
+      <div class="w-full h-64 rounded overflow-hidden border">
+        <!-- embed Google Maps via iframe. Replace src below with your iframe src if you have full embed link -->
+        <iframe
+          src="https://www.google.com/maps?q={{ urlencode($masjid['address']) }}&output=embed"
+          class="w-full h-full" frameborder="0" allowfullscreen></iframe>
+      </div>
+    </div>
+
+    <aside class="bg-white rounded-lg shadow-sm p-6">
+      <h3 class="font-semibold text-lg">Kontak & Media</h3>
+      <p class="mt-2"><strong>Alamat</strong><br>{{ $masjid['address'] }}</p>
+      <p class="mt-2"><strong>Telp/WA</strong><br>{{ $masjid['phone'] }}</p>
+      <p class="mt-2"><strong>Email</strong><br>{{ $masjid['email'] }}</p>
+
+      <div class="mt-4 space-x-2">
+        <a href="{{ $masjid['instagram'] }}" target="_blank" class="inline-block text-sm px-3 py-1 border rounded">Instagram</a>
+        <a href="{{ $masjid['facebook'] }}" target="_blank" class="inline-block text-sm px-3 py-1 border rounded">Facebook</a>
+        <a href="{{ $masjid['youtube'] }}" target="_blank" class="inline-block text-sm px-3 py-1 border rounded">YouTube</a>
+      </div>
+    </aside>
+  </section>
+
+</div>
+
+{{-- Footer --}}
+<footer class="bg-gray-50 border-t mt-8">
+  <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div>
+        <h4 class="font-semibold">{{ $masjid['title'] }}</h4>
+        <p class="text-sm text-gray-600 mt-2">{{ $masjid['address'] }}</p>
+        <p class="text-sm text-gray-600 mt-1">Telp/WA: {{ $masjid['phone'] }}</p>
+        <p class="text-sm text-gray-600 mt-1">Email: {{ $masjid['email'] }}</p>
+      </div>
+      <div>
+        <h4 class="font-semibold">Layanan</h4>
+        <ul class="mt-2 text-sm text-gray-600 space-y-1">
+          <li><a href="{{ route('zakat.index') }}">Kalkulator Zakat</a></li>
+          <li><a href="{{ route('donasi.create') }}">Donasi</a></li>
+          <li><a href="#">Rukun Kematian</a></li>
+          <li><a href="#">TPQ / TPA</a></li>
+          <li><a href="#">Arisan Qurban</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-semibold">Ikuti Kami</h4>
+        <div class="mt-2 flex gap-2">
+          <a href="{{ $masjid['instagram'] }}" target="_blank" class="text-sm px-3 py-1 rounded border">Instagram</a>
+          <a href="{{ $masjid['facebook'] }}" target="_blank" class="text-sm px-3 py-1 rounded border">Facebook</a>
+          <a href="{{ $masjid['youtube'] }}" target="_blank" class="text-sm px-3 py-1 rounded border">YouTube</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 text-center text-xs text-gray-500">
+      © {{ date('Y') }} {{ $masjid['title'] }} — Semua hak dilindungi.
+    </div>
+  </div>
+</footer>
+@endsection
+
+@section('scripts')
+<script>
+/*
+  1) Slider: simple fade slider (vanilla JS)
+*/
+(function() {
+  const slides = document.querySelectorAll('#hero-slider .slide');
+  if (!slides.length) return;
+  let idx = 0;
+  setInterval(() => {
+    slides[idx].classList.remove('opacity-100'); slides[idx].classList.add('opacity-0');
+    idx = (idx + 1) % slides.length;
+    slides[idx].classList.remove('opacity-0'); slides[idx].classList.add('opacity-100');
+  }, 4500);
+})();
+
+/*
+  2) Prayer times: try Aladhan API by city (Loa Janan, Indonesia) fallback static times
+*/
+(function(){
+  const city = 'Loa Janan';
+  const country = 'Indonesia';
+  const method = 2; // Muslim World League or change as desired
+
+  function fill(times) {
+    document.getElementById('time-fajr').textContent = times.Fajr || '--:--';
+    document.getElementById('time-sunrise').textContent = times.Sunrise || '--:--';
+    document.getElementById('time-dhuhr').textContent = times.Dhuhr || '--:--';
+    document.getElementById('time-asr').textContent = times.Asr || '--:--';
+    document.getElementById('time-maghrib').textContent = times.Maghrib || '--:--';
+    document.getElementById('time-isha').textContent = times.Isha || '--:--';
+  }
+
+  // fallback static schedule (local default) if API fails
+  const fallback = {
+    Fajr: '04:30', Sunrise: '06:00', Dhuhr: '12:00', Asr: '15:15', Maghrib: '18:00', Isha: '19:15'
+  };
+
+  fetch(`https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}&method=${method}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.data && data.data.timings) {
+        fill(data.data.timings);
+      } else {
+        fill(fallback);
+      }
+    })
+    .catch(err => {
+      console.warn('Aladhan API failed, using fallback times', err);
+      fill(fallback);
+    });
+})();
+
+</script>
+@endsection
+
+
+==================================================
+FILE: .\resources\views\front\berita\index.blade.php
+==================================================
+
+<x-guest-layout>
+    <div class="bg-gray-100 dark:bg-gray-900 pt-12 pb-24">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Berita & Informasi Masjid</h1>
+                <p class="mt-4 text-lg text-gray-600 dark:text-gray-400">Ikuti kegiatan, pengumuman, dan artikel terbaru dari Masjid Al-Istiqomah.</p>
+            </div>
+
+            <!-- FORM FILTER DAN SORTING -->
+            <div class="mb-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+                <form action="{{ route('front.berita.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label for="kategori" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Filter Kategori</label>
+                        <select name="kategori" id="kategori" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="">Semua Kategori</option>
+                            <option value="artikel" {{ request('kategori') == 'artikel' ? 'selected' : '' }}>Artikel</option>
+                            <option value="pengumuman" {{ request('kategori') == 'pengumuman' ? 'selected' : '' }}>Pengumuman</option>
+                            <option value="kegiatan" {{ request('kategori') == 'kegiatan' ? 'selected' : '' }}>Kegiatan</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="urutan" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Urutkan</label>
+                        <select name="urutan" id="urutan" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="terbaru" {{ request('urutan', 'terbaru') == 'terbaru' ? 'selected' : '' }}>Terbaru</option>
+                            <option value="terlama" {{ request('urutan') == 'terlama' ? 'selected' : '' }}>Terlama</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Terapkan
+                    </button>
+                </form>
+            </div>
+
+            <!-- DAFTAR KARTU BERITA -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                @forelse ($semuaBerita as $berita)
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col">
+                        <a href="{{ route('front.berita.show', $berita) }}">
+                            <img class="h-56 w-full object-cover" src="{{ $berita->gambar ? asset('storage/' . $berita->gambar) : '[https://placehold.co/600x400/e2e8f0/e2e8f0](https://placehold.co/600x400/e2e8f0/e2e8f0)' }}" alt="{{ $berita->judul }}">
+                        </a>
+                        <div class="p-6 flex-grow flex flex-col">
+                            <div class="flex-grow">
+                                <p class="text-sm text-blue-500 dark:text-blue-400 font-semibold">{{ ucfirst($berita->kategori) }}</p>
+                                <a href="{{ route('front.berita.show', $berita) }}" class="block mt-2">
+                                    <p class="text-xl font-semibold text-gray-900 dark:text-white hover:text-blue-600">{{ $berita->judul }}</p>
+                                    <p class="mt-3 text-base text-gray-500 dark:text-gray-400">{{ Str::limit(strip_tags($berita->isi), 100) }}</p>
+                                </a>
+                            </div>
+                            <div class="mt-6 flex items-center">
+                                <div class="text-sm text-gray-500 dark:text-gray-400">
+                                    <span>{{ $berita->created_at->format('d F Y') }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="md:col-span-2 lg:col-span-3 text-center py-12">
+                        <p class="text-gray-500 dark:text-gray-400">Atmin belum mengunggah</p>
+                    </div>
+                @endforelse
+            </div>
+
+            <!-- PAGINASI -->
+            <div class="mt-12">
+                {{ $semuaBerita->links() }}
+            </div>
+        </div>
+    </div>
+</x-guest-layout>
+
+
+
+==================================================
+FILE: .\resources\views\front\berita\show.blade.php
+==================================================
+
+<x-guest-layout>
+    <div class="bg-white dark:bg-gray-900 py-12">
+        <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                {{-- Tampilkan gambar berita, jika tidak ada, tampilkan placeholder --}}
+                <img class="h-96 w-full object-cover" src="{{ $berita->gambar ? asset('storage/' . $berita->gambar) : 'https://placehold.co/1200x600/e2e8f0/e2e8f0?text=Gambar+Tidak+Tersedia' }}" alt="{{ $berita->judul }}">
+                
+                <div class="p-6 md:p-8">
+                    {{-- Informasi Kategori dan Tanggal --}}
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        <span class="font-semibold text-blue-500 dark:text-blue-400">{{ ucfirst($berita->kategori) }}</span>
+                        <span class="mx-2">&bull;</span>
+                        <span>Dipublikasikan pada {{ optional($berita->tanggal_publikasi)->format('d F Y') }}</span>
+                    </div>
+                    
+                    {{-- Judul Berita --}}
+                    <h1 class="mt-4 text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">{{ $berita->judul }}</h1>
+                    
+                    {{-- Konten/Isi Berita --}}
+                    <div class="mt-8 prose prose-lg dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
+                        {{-- Menggunakan nl2br untuk mengubah baris baru menjadi tag <br> agar format paragraf tetap rapi --}}
+                        {!! nl2br(e($berita->isi)) !!}
+                    </div>
+
+                    {{-- Tombol Kembali --}}
+                    <div class="mt-12">
+                        <a href="{{ route('front.berita.index') }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            &larr; Kembali ke semua berita
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</x-guest-layout>
+
+
+
+==================================================
+FILE: .\resources\views\front\donasi\bukti.blade.php
 ==================================================
 
 <!DOCTYPE html>
@@ -7499,7 +7111,7 @@ FILE: .\resources\views\donasi\bukti.blade.php
 
 
 ==================================================
-FILE: .\resources\views\donasi\create.blade.php
+FILE: .\resources\views\front\donasi\create.blade.php
 ==================================================
 
 <x-guest-layout>
@@ -7681,7 +7293,7 @@ FILE: .\resources\views\donasi\create.blade.php
 
 
 ==================================================
-FILE: .\resources\views\donasi\pembayaran.blade.php
+FILE: .\resources\views\front\donasi\pembayaran.blade.php
 ==================================================
 
 <x-guest-layout>
@@ -7753,7 +7365,7 @@ FILE: .\resources\views\donasi\pembayaran.blade.php
 
 
 ==================================================
-FILE: .\resources\views\donasi\sukses.blade.php
+FILE: .\resources\views\front\donasi\sukses.blade.php
 ==================================================
 
 <x-guest-layout>
@@ -7833,145 +7445,7 @@ FILE: .\resources\views\donasi\sukses.blade.php
 
 
 ==================================================
-FILE: .\resources\views\landing\index.blade.php
-==================================================
-
-<x-main-layout>
-  {{-- Hero / Slider --}}
-  <section class="bg-white">
-    <div class="max-w-7xl mx-auto px-4 py-12">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-        <div>
-          <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900">Selamat Datang di Masjid Besar Al-Istiqomah</h1>
-          <p class="mt-4 text-lg text-gray-600">Menyajikan informasi kegiatan, laporan keuangan, berita, layanan zakat dan donasi.</p>
-          <div class="mt-6 flex gap-3">
-            <a href="{{ route('zakat.index') }}" class="bg-green-600 text-white px-5 py-3 rounded-md font-semibold shadow">Hitung Zakat</a>
-            <a href="{{ route('laporan.index') }}" class="bg-white border px-5 py-3 rounded-md font-semibold">Lihat Laporan</a>
-          </div>
-        </div>
-
-        <div class="rounded-lg overflow-hidden shadow">
-          {{-- Simple slider (js minimal) --}}
-          <div id="landing-slider" class="relative">
-            @foreach($slider as $i => $img)
-              <img
-                src="{{ $img }}"
-                class="w-full h-56 md:h-64 object-cover transition-opacity duration-500 {{ $i !== 0 ? 'hidden' : '' }}"
-                data-slide-index="{{ $i }}">
-            @endforeach
-            <div class="absolute left-2 top-2 bg-white/60 px-3 py-1 rounded text-sm">Foto Kegiatan</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- Waktu Sholat --}}
-  <section class="py-8 bg-gray-50">
-    <div class="max-w-4xl mx-auto px-4">
-      <h2 class="text-xl font-semibold mb-4">Waktu Sholat Hari Ini</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-        @foreach(['Fajr'=>'Subuh','Sunrise'=>'Terbit','Dhuhr'=>'Dzuhur','Asr'=>'Ashar','Maghrib'=>'Maghrib','Isha'=>'Isya'] as $key => $label)
-          <div class="bg-white p-4 rounded shadow text-center">
-            <div class="text-sm text-gray-500">{{ $label }}</div>
-            <div class="mt-2 text-xl font-medium text-gray-700">{{ $prayerTimes[$key] ?? '--:--' }}</div>
-          </div>
-        @endforeach
-      </div>
-    </div>
-  </section>
-
-  {{-- Donasi ringkas & layanan --}}
-  <section class="py-8">
-    <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2">
-        <div class="bg-white p-6 rounded-lg shadow">
-          <h3 class="text-lg font-semibold">Tombol Donasi Cepat</h3>
-          <p class="text-sm text-gray-500 mt-2">Donasi untuk program: <strong>{{ $donationSummary['program'] }}</strong></p>
-
-          <div class="mt-4 flex items-center gap-4">
-            <div class="text-2xl font-bold text-green-600">Rp {{ number_format($donationSummary['month_total'],0,',','.') }}</div>
-            <a href="{{ route('donasi.create') }}" class="ml-auto bg-yellow-500 text-white px-4 py-2 rounded-md font-semibold">Donasi Sekarang</a>
-          </div>
-
-          <div class="mt-6">
-            <h4 class="font-medium text-sm text-gray-700 mb-2">Donatur Terbaru</h4>
-            <ul class="text-sm text-gray-600 space-y-1">
-              @foreach($donationSummary['recent'] as $r)
-                <li>{{ $r['name'] }} — Rp {{ number_format($r['amount'],0,',','.') }}</li>
-              @endforeach
-            </ul>
-          </div>
-        </div>
-
-        <div class="mt-6 bg-white p-6 rounded-lg shadow">
-          <h3 class="text-lg font-semibold mb-4">Layanan</h3>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-            @foreach($services as $s)
-              <a href="{{ $s['link'] }}" class="block p-3 border rounded hover:bg-gray-50 text-center">
-                {{ $s['title'] }}
-              </a>
-            @endforeach
-          </div>
-        </div>
-      </div>
-
-      {{-- Maps --}}
-      <div>
-        <div class="bg-white p-4 rounded-lg shadow">
-          <h3 class="text-lg font-semibold mb-3">Lokasi Masjid</h3>
-          <div class="w-full h-48 rounded overflow-hidden">
-            <iframe
-              src="https://www.google.com/maps?q={{ $mapsQuery }}&output=embed"
-              class="w-full h-full border-0"
-              allowfullscreen=""
-              loading="lazy"></iframe>
-          </div>
-          <div class="mt-3 text-sm">
-            <a href="https://maps.app.goo.gl/7rbuW8pTqgfT12Ty8" target="_blank" class="text-blue-600">Lihat di Google Maps</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {{-- Footer (simple include) --}}
-  <footer class="bg-gray-800 text-white py-8">
-    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between">
-      <div>
-        <h4 class="text-lg font-bold">Masjid Besar Al-Istiqomah</h4>
-        <p class="text-sm mt-2">Loa Duri Ilir, Kutai Kartanegara — Kalimantan Timur</p>
-        <p class="text-sm mt-1">Email: info@masjid.example • Telp: 08xx-xxxx</p>
-      </div>
-      <div class="mt-4 md:mt-0">
-        <h5 class="font-semibold">Ikuti Kami</h5>
-        <div class="flex gap-3 mt-2">
-          <a href="#" class="text-sm">Facebook</a>
-          <a href="#" class="text-sm">Instagram</a>
-          <a href="#" class="text-sm">YouTube</a>
-        </div>
-      </div>
-    </div>
-  </footer>
-
-  {{-- Minimal JS: slider --}}
-  <script>
-    (function(){
-      const slides = Array.from(document.querySelectorAll('#landing-slider img'));
-      let idx = 0;
-      setInterval(()=> {
-        slides[idx].classList.add('hidden');
-        idx = (idx + 1) % slides.length;
-        slides[idx].classList.remove('hidden');
-      }, 4000);
-    })();
-  </script>
-
-</x-main-layout>
-
-
-==================================================
-FILE: .\resources\views\laporan\index.blade.php
+FILE: .\resources\views\front\laporan\index.blade.php
 ==================================================
 
 <x-main-layout>
@@ -7987,7 +7461,7 @@ FILE: .\resources\views\laporan\index.blade.php
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6 text-gray-900">
                     <h3 class="text-lg font-semibold mb-4">Filter Berdasarkan Tanggal</h3>
-                    <form action="{{ route('laporan.index') }}" method="GET" class="flex flex-col md:flex-row items-center gap-4">
+                    <form action="{{ route('front.laporan.index') }}" method="GET" class="flex flex-col md:flex-row items-center gap-4">
                         <div>
                             <label for="start_date" class="block text-sm font-medium text-gray-700">Tanggal Mulai</label>
                             <input type="date" name="start_date" id="start_date" value="{{ $startDate }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
@@ -8083,553 +7557,7 @@ FILE: .\resources\views\laporan\index.blade.php
 </x-main-layout>
 
 ==================================================
-FILE: .\resources\views\layouts\app.blade.php
-==================================================
-
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="{{ csrf_token() }}">
-
-        <title>{{ config('app.name', 'Laravel') }}</title>
-
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
-        <!-- Scripts -->
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
-            @include('layouts.navigation')
-
-            <!-- Page Heading -->
-            @isset($header)
-                <header class="bg-white dark:bg-gray-800 shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endisset
-
-            <!-- Page Content -->
-            <main>
-                {{ $slot }}
-            </main>
-        </div>
-    </body>
-</html>
-
-
-==================================================
-FILE: .\resources\views\layouts\guest.blade.php
-==================================================
-
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <title>{{ $title ?? 'Masjid Besar Al-Istiqomah' }}</title>
-
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-    <!-- Alpine.js (NAV untuk publik) -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-
-<body class="antialiased bg-gray-100">
-
-    {{-- ========== NAV PUBLIK ========== --}}
-    @include('layouts.public-navigation')
-
-    {{-- ========== MAIN CONTENT ========== --}}
-    <main class="mt-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {{ $slot }}
-    </main>
-
-</body>
-</html>
-
-
-==================================================
-FILE: .\resources\views\layouts\navigation.blade.php
-==================================================
-
-<nav class="bg-white border-b border-gray-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-
-            <!-- Logo -->
-            <div class="flex">
-                <a href="{{ route('admin.dashboard') }}" class="flex items-center">
-                    <img src="/images/logo-masjid.png" class="h-8 w-auto mr-2">
-                    <span class="font-bold text-gray-800">Admin Panel</span>
-                </a>
-            </div>
-
-            <!-- Menu -->
-            <div class="flex space-x-8 items-center">
-
-                <a href="{{ route('admin.dashboard') }}"
-                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.dashboard') ? 'font-bold' : '' }}">
-                    Dashboard
-                </a>
-
-                <a href="{{ route('admin.berita.index') }}"
-                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.berita.*') ? 'font-bold' : '' }}">
-                    Berita
-                </a>
-
-                <a href="{{ route('admin.transaksi.index') }}"
-                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.transaksi.*') ? 'font-bold' : '' }}">
-                    Keuangan
-                </a>
-
-                <a href="{{ route('admin.donasi.laporan') }}"
-                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.donasi.*') ? 'font-bold' : '' }}">
-                    Donasi
-                </a>
-
-                <a href="{{ route('admin.harga-emas.index') }}"
-                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.harga-emas.*') ? 'font-bold' : '' }}">
-                    Harga Emas
-                </a>
-
-                <!-- Logout -->
-                <form method="POST" action="{{ route('admin.logout') }}">
-                    @csrf
-                    <button class="text-red-600 font-semibold">
-                        Logout
-                    </button>
-                </form>
-            </div>
-
-        </div>
-    </div>
-</nav>
-
-
-==================================================
-FILE: .\resources\views\layouts\public-navigation.blade.php
-==================================================
-
-<nav class="w-full bg-white shadow-sm border-b">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-
-        {{-- Logo & Nama Masjid --}}
-        <a href="{{ route('home') }}" class="flex items-center gap-2">
-            <img src="{{ asset('images/logo.png') }}" class="h-8" alt="Logo">
-            <span class="font-bold text-lg">Masjid Besar Al-Istiqomah</span>
-        </a>
-
-        {{-- Menu --}}
-        <div class="flex items-center gap-6">
-            <a href="{{ route('home') }}" class="nav-link">Beranda</a>
-            <a href="{{ route('berita.publik.index') }}" class="nav-link">Berita</a>
-            <a href="{{ route('laporan.index') }}" class="nav-link">Laporan Keuangan</a>
-            <a href="#footer" class="nav-link">Kontak</a>
-        </div>
-    </div>
-</nav>
-
-<style>
-.nav-link {
-    color: #333;
-    font-weight: 500;
-    padding: 6px 8px;
-}
-.nav-link:hover {
-    color: #0ea5e9;
-}
-</style>
-
-
-==================================================
-FILE: .\resources\views\layouts\public.blade.php
-==================================================
-
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Masjid Besar Al-Istiqomah </title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 font-sans">
-
-    <nav class="bg-white shadow-md">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="{{ route('home') }}" class="font-bold text-xl text-indigo-600">
-                Masjid Besar Al-Istiqomah
-            </a>
-            <div class="hidden md:flex space-x-6">
-                <a href="{{ route('home') }}" class="text-gray-600 hover:text-indigo-600">Beranda</a>
-                <a href="#" class="text-gray-600 hover:text-indigo-600">Berita</a>
-                <a href="#" class="text-gray-600 hover:text-indigo-600">Laporan Keuangan</a>
-                <a href="#" class="text-gray-600 hover:text-indigo-600">Kontak</a>
-            </div>
-            </div>
-    </nav>
-
-    <main class="container mx-auto p-8">
-        @yield('content')
-    </main>
-
-    <footer class="bg-white mt-12">
-        <div class="container mx-auto p-6 text-center text-gray-600">
-            <p>&copy; {{ date('Y') }} Sistem Informasi Masjid. All Rights Reserved.</p>
-        </div>
-    </footer>
-
-</body>
-</html>
-
-==================================================
-FILE: .\resources\views\profile\edit.blade.php
-==================================================
-
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Profile') }}
-        </h2>
-    </x-slot>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-profile-information-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-password-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.delete-user-form')
-                </div>
-            </div>
-        </div>
-    </div>
-</x-app-layout>
-
-
-==================================================
-FILE: .\resources\views\profile\partials\delete-user-form.blade.php
-==================================================
-
-<section class="space-y-6">
-    <header>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {{ __('Delete Account') }}
-        </h2>
-
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Before deleting your account, please download any data or information that you wish to retain.') }}
-        </p>
-    </header>
-
-    <x-danger-button
-        x-data=""
-        x-on:click.prevent="$dispatch('open-modal', 'confirm-user-deletion')"
-    >{{ __('Delete Account') }}</x-danger-button>
-
-    <x-modal name="confirm-user-deletion" :show="$errors->userDeletion->isNotEmpty()" focusable>
-        <form method="post" action="{{ route('profile.destroy') }}" class="p-6">
-            @csrf
-            @method('delete')
-
-            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                {{ __('Are you sure you want to delete your account?') }}
-            </h2>
-
-            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.') }}
-            </p>
-
-            <div class="mt-6">
-                <x-input-label for="password" value="{{ __('Password') }}" class="sr-only" />
-
-                <x-text-input
-                    id="password"
-                    name="password"
-                    type="password"
-                    class="mt-1 block w-3/4"
-                    placeholder="{{ __('Password') }}"
-                />
-
-                <x-input-error :messages="$errors->userDeletion->get('password')" class="mt-2" />
-            </div>
-
-            <div class="mt-6 flex justify-end">
-                <x-secondary-button x-on:click="$dispatch('close')">
-                    {{ __('Cancel') }}
-                </x-secondary-button>
-
-                <x-danger-button class="ms-3">
-                    {{ __('Delete Account') }}
-                </x-danger-button>
-            </div>
-        </form>
-    </x-modal>
-</section>
-
-
-==================================================
-FILE: .\resources\views\profile\partials\update-password-form.blade.php
-==================================================
-
-<section>
-    <header>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {{ __('Update Password') }}
-        </h2>
-
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {{ __('Ensure your account is using a long, random password to stay secure.') }}
-        </p>
-    </header>
-
-    <form method="post" action="{{ route('password.update') }}" class="mt-6 space-y-6">
-        @csrf
-        @method('put')
-
-        <div>
-            <x-input-label for="update_password_current_password" :value="__('Current Password')" />
-            <x-text-input id="update_password_current_password" name="current_password" type="password" class="mt-1 block w-full" autocomplete="current-password" />
-            <x-input-error :messages="$errors->updatePassword->get('current_password')" class="mt-2" />
-        </div>
-
-        <div>
-            <x-input-label for="update_password_password" :value="__('New Password')" />
-            <x-text-input id="update_password_password" name="password" type="password" class="mt-1 block w-full" autocomplete="new-password" />
-            <x-input-error :messages="$errors->updatePassword->get('password')" class="mt-2" />
-        </div>
-
-        <div>
-            <x-input-label for="update_password_password_confirmation" :value="__('Confirm Password')" />
-            <x-text-input id="update_password_password_confirmation" name="password_confirmation" type="password" class="mt-1 block w-full" autocomplete="new-password" />
-            <x-input-error :messages="$errors->updatePassword->get('password_confirmation')" class="mt-2" />
-        </div>
-
-        <div class="flex items-center gap-4">
-            <x-primary-button>{{ __('Save') }}</x-primary-button>
-
-            @if (session('status') === 'password-updated')
-                <p
-                    x-data="{ show: true }"
-                    x-show="show"
-                    x-transition
-                    x-init="setTimeout(() => show = false, 2000)"
-                    class="text-sm text-gray-600 dark:text-gray-400"
-                >{{ __('Saved.') }}</p>
-            @endif
-        </div>
-    </form>
-</section>
-
-
-==================================================
-FILE: .\resources\views\profile\partials\update-profile-information-form.blade.php
-==================================================
-
-<section>
-    <header>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {{ __('Profile Information') }}
-        </h2>
-
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {{ __("Update your account's profile information and email address.") }}
-        </p>
-    </header>
-
-    <form id="send-verification" method="post" action="{{ route('verification.send') }}">
-        @csrf
-    </form>
-
-    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
-        @csrf
-        @method('patch')
-
-        <div>
-            <x-input-label for="name" :value="__('Name')" />
-            <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $user->name)" required autofocus autocomplete="name" />
-            <x-input-error class="mt-2" :messages="$errors->get('name')" />
-        </div>
-
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
-            <x-input-error class="mt-2" :messages="$errors->get('email')" />
-
-            @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())
-                <div>
-                    <p class="text-sm mt-2 text-gray-800 dark:text-gray-200">
-                        {{ __('Your email address is unverified.') }}
-
-                        <button form="send-verification" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
-                            {{ __('Click here to re-send the verification email.') }}
-                        </button>
-                    </p>
-
-                    @if (session('status') === 'verification-link-sent')
-                        <p class="mt-2 font-medium text-sm text-green-600 dark:text-green-400">
-                            {{ __('A new verification link has been sent to your email address.') }}
-                        </p>
-                    @endif
-                </div>
-            @endif
-        </div>
-
-        <div class="flex items-center gap-4">
-            <x-primary-button>{{ __('Save') }}</x-primary-button>
-
-            @if (session('status') === 'profile-updated')
-                <p
-                    x-data="{ show: true }"
-                    x-show="show"
-                    x-transition
-                    x-init="setTimeout(() => show = false, 2000)"
-                    class="text-sm text-gray-600 dark:text-gray-400"
-                >{{ __('Saved.') }}</p>
-            @endif
-        </div>
-    </form>
-</section>
-
-
-==================================================
-FILE: .\resources\views\public\berita\index.blade.php
-==================================================
-
-<x-guest-layout>
-    <div class="bg-gray-100 dark:bg-gray-900 pt-12 pb-24">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Berita & Informasi Masjid</h1>
-                <p class="mt-4 text-lg text-gray-600 dark:text-gray-400">Ikuti kegiatan, pengumuman, dan artikel terbaru dari Masjid Al-Istiqomah.</p>
-            </div>
-
-            <!-- FORM FILTER DAN SORTING -->
-            <div class="mb-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-                <form action="{{ route('berita.publik.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div>
-                        <label for="kategori" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Filter Kategori</label>
-                        <select name="kategori" id="kategori" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="">Semua Kategori</option>
-                            <option value="artikel" {{ request('kategori') == 'artikel' ? 'selected' : '' }}>Artikel</option>
-                            <option value="pengumuman" {{ request('kategori') == 'pengumuman' ? 'selected' : '' }}>Pengumuman</option>
-                            <option value="kegiatan" {{ request('kategori') == 'kegiatan' ? 'selected' : '' }}>Kegiatan</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="urutan" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Urutkan</label>
-                        <select name="urutan" id="urutan" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="terbaru" {{ request('urutan', 'terbaru') == 'terbaru' ? 'selected' : '' }}>Terbaru</option>
-                            <option value="terlama" {{ request('urutan') == 'terlama' ? 'selected' : '' }}>Terlama</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Terapkan
-                    </button>
-                </form>
-            </div>
-
-            <!-- DAFTAR KARTU BERITA -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                @forelse ($semuaBerita as $berita)
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col">
-                        <a href="{{ route('berita.publik.show', $berita) }}">
-                            <img class="h-56 w-full object-cover" src="{{ $berita->gambar ? asset('storage/' . $berita->gambar) : '[https://placehold.co/600x400/e2e8f0/e2e8f0](https://placehold.co/600x400/e2e8f0/e2e8f0)' }}" alt="{{ $berita->judul }}">
-                        </a>
-                        <div class="p-6 flex-grow flex flex-col">
-                            <div class="flex-grow">
-                                <p class="text-sm text-blue-500 dark:text-blue-400 font-semibold">{{ ucfirst($berita->kategori) }}</p>
-                                <a href="{{ route('berita.publik.show', $berita) }}" class="block mt-2">
-                                    <p class="text-xl font-semibold text-gray-900 dark:text-white hover:text-blue-600">{{ $berita->judul }}</p>
-                                    <p class="mt-3 text-base text-gray-500 dark:text-gray-400">{{ Str::limit(strip_tags($berita->isi), 100) }}</p>
-                                </a>
-                            </div>
-                            <div class="mt-6 flex items-center">
-                                <div class="text-sm text-gray-500 dark:text-gray-400">
-                                    <span>{{ $berita->created_at->format('d F Y') }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @empty
-                    <div class="md:col-span-2 lg:col-span-3 text-center py-12">
-                        <p class="text-gray-500 dark:text-gray-400">Atmin belum mengunggah</p>
-                    </div>
-                @endforelse
-            </div>
-
-            <!-- PAGINASI -->
-            <div class="mt-12">
-                {{ $semuaBerita->links() }}
-            </div>
-        </div>
-    </div>
-</x-guest-layout>
-
-
-
-==================================================
-FILE: .\resources\views\public\berita\show.blade.php
-==================================================
-
-<x-guest-layout>
-    <div class="bg-white dark:bg-gray-900 py-12">
-        <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                {{-- Tampilkan gambar berita, jika tidak ada, tampilkan placeholder --}}
-                <img class="h-96 w-full object-cover" src="{{ $berita->gambar ? asset('storage/' . $berita->gambar) : 'https://placehold.co/1200x600/e2e8f0/e2e8f0?text=Gambar+Tidak+Tersedia' }}" alt="{{ $berita->judul }}">
-                
-                <div class="p-6 md:p-8">
-                    {{-- Informasi Kategori dan Tanggal --}}
-                    <div class="text-sm text-gray-500 dark:text-gray-400">
-                        <span class="font-semibold text-blue-500 dark:text-blue-400">{{ ucfirst($berita->kategori) }}</span>
-                        <span class="mx-2">&bull;</span>
-                        <span>Dipublikasikan pada {{ optional($berita->tanggal_publikasi)->format('d F Y') }}</span>
-                    </div>
-                    
-                    {{-- Judul Berita --}}
-                    <h1 class="mt-4 text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">{{ $berita->judul }}</h1>
-                    
-                    {{-- Konten/Isi Berita --}}
-                    <div class="mt-8 prose prose-lg dark:prose-invert max-w-none text-gray-600 dark:text-gray-300">
-                        {{-- Menggunakan nl2br untuk mengubah baris baru menjadi tag <br> agar format paragraf tetap rapi --}}
-                        {!! nl2br(e($berita->isi)) !!}
-                    </div>
-
-                    {{-- Tombol Kembali --}}
-                    <div class="mt-12">
-                        <a href="{{ route('berita.publik.index') }}" class="text-blue-600 dark:text-blue-400 hover:underline">
-                            &larr; Kembali ke semua berita
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</x-guest-layout>
-
-
-
-==================================================
-FILE: .\resources\views\zakat\kalkulator.blade.php
+FILE: .\resources\views\front\zakat\kalkulator.blade.php
 ==================================================
 
 <x-guest-layout>
@@ -8707,7 +7635,7 @@ FILE: .\resources\views\zakat\kalkulator.blade.php
 
             <div id="profesi_manual" class="hidden mt-3">
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-              <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100000" value="">
+              <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
               <div class="mt-2">
                 <button id="bayar_langsung_profesi" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
               </div>
@@ -8729,7 +7657,7 @@ FILE: .\resources\views\zakat\kalkulator.blade.php
 
             <div>
               <label class="block mb-1 font-medium">Jumlah Harta (Rp)</label>
-              <input id="harta_maal" name="harta" type="text" class="border rounded p-2 w-full rupiah" inputmode="numeric" value="{{ session('zakat_input.harta') ?? '' }}">
+              <input id="harta_maal" name="harta" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100.000.000" inputmode="numeric" value="{{ session('zakat_input.harta') ?? '' }}">
             </div>
 
             <div>
@@ -8756,7 +7684,7 @@ FILE: .\resources\views\zakat\kalkulator.blade.php
 
             <div id="maal_manual" class="hidden mt-3">
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-              <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100000" value="">
+              <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
               <div class="mt-2">
                 <button id="bayar_langsung_maal" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
               </div>
@@ -8776,7 +7704,7 @@ FILE: .\resources\views\zakat\kalkulator.blade.php
 
           <div>
             <label class="block mb-1 font-medium">Modal yang Dijalankan (Rp)</label>
-            <input id="modal_perniagaan" name="modal" type="text" class="border rounded p-2 w-full rupiah" inputmode="numeric" value="{{ session('zakat_input.modal') ?? '' }}">
+            <input id="modal_perniagaan" name="modal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh:75.000.000" inputmode="numeric" value="{{ session('zakat_input.modal') ?? '' }}">
           </div>
 
           <div>
@@ -8813,7 +7741,7 @@ FILE: .\resources\views\zakat\kalkulator.blade.php
 
           <div id="perniagaan_manual" class="hidden mt-3">
             <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-            <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100000" value="">
+            <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
             <div class="mt-2">
               <button id="bayar_langsung_perniagaan" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
             </div>
@@ -9092,7 +8020,7 @@ FILE: .\resources\views\zakat\kalkulator.blade.php
 </x-guest-layout>
 
 ==================================================
-FILE: .\resources\views\zakat\pembayaran.blade.php
+FILE: .\resources\views\front\zakat\pembayaran.blade.php
 ==================================================
 
 <x-guest-layout>
@@ -9139,7 +8067,7 @@ FILE: .\resources\views\zakat\pembayaran.blade.php
 
 
 ==================================================
-FILE: .\resources\views\zakat\sukses.blade.php
+FILE: .\resources\views\front\zakat\sukses.blade.php
 ==================================================
 
 <x-guest-layout>
@@ -9172,11 +8100,225 @@ FILE: .\resources\views\zakat\sukses.blade.php
 
     <div class="mt-8 flex justify-center gap-3">
       <a href="{{ route('zakat.index') }}" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Kembali ke Kalkulator</a>
-      <a href="{{ route('home') }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Beranda</a>
+      <a href="{{ route('front.landing') }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Beranda</a>
     </div>
   </div>
 </x-guest-layout>
 
+
+==================================================
+FILE: .\resources\views\layouts\admin.blade.php
+==================================================
+
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+
+        <title>{{ config('app.name', 'Laravel') }}</title>
+
+        <!-- Fonts -->
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+
+        <!-- Scripts -->
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
+    </head>
+    <body class="font-sans antialiased">
+        <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
+            @include('layouts.navigation')
+
+            <!-- Page Heading -->
+            @isset($header)
+                <header class="bg-white dark:bg-gray-800 shadow">
+                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                        {{ $header }}
+                    </div>
+                </header>
+            @endisset
+
+            <!-- Page Content -->
+            <main>
+                {{ $slot }}
+            </main>
+        </div>
+    </body>
+</html>
+
+
+==================================================
+FILE: .\resources\views\layouts\guest.blade.php
+==================================================
+
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{{ $title ?? 'Masjid Besar Al-Istiqomah' }}</title>
+
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <!-- Alpine.js (NAV untuk publik) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+
+<body class="antialiased bg-gray-100">
+
+    {{-- ========== NAV PUBLIK ========== --}}
+    @include('layouts.public-navigation')
+
+    {{-- ========== MAIN CONTENT ========== --}}
+    <main class="mt-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {{ $slot }}
+    </main>
+
+</body>
+</html>
+
+
+==================================================
+FILE: .\resources\views\layouts\navigation.blade.php
+==================================================
+
+<nav class="bg-white border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+
+            <!-- Logo -->
+            <div class="flex">
+                <a href="{{ route('admin.dashboard') }}" class="flex items-center">
+                    <img src="/images/logo-masjid.png" class="h-8 w-auto mr-2">
+                    <span class="font-bold text-gray-800">Admin Panel</span>
+                </a>
+            </div>
+
+            <!-- Menu -->
+            <div class="flex space-x-8 items-center">
+
+                <a href="{{ route('admin.dashboard') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.dashboard') ? 'font-bold' : '' }}">
+                    Dashboard
+                </a>
+
+                <a href="{{ route('admin.berita.index') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.berita.*') ? 'font-bold' : '' }}">
+                    Berita
+                </a>
+
+                <a href="{{ route('admin.transaksi.index') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.transaksi.*') ? 'font-bold' : '' }}">
+                    Keuangan
+                </a>
+
+                <a href="{{ route('admin.donasi.laporan') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.donasi.*') ? 'font-bold' : '' }}">
+                    Donasi
+                </a>
+
+                <a href="{{ route('admin.zakat.index') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.zakat.*') ? 'font-bold' : '' }}">
+                    Zakat
+                </a>
+                
+                <a href="{{ route('admin.harga-emas.index') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.harga-emas.*') ? 'font-bold' : '' }}">
+                    Harga Emas
+                </a>
+
+                <!-- Logout -->
+                <form method="POST" action="{{ route('admin.logout') }}">
+                    @csrf
+                    <button class="text-red-600 font-semibold">
+                        Logout
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</nav>
+
+
+==================================================
+FILE: .\resources\views\layouts\public-navigation.blade.php
+==================================================
+
+<nav class="w-full bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+
+        {{-- Logo & Nama Masjid --}}
+        <a href="{{ route('front.landing') }}" class="flex items-center gap-2">
+            <img src="{{ asset('images/logo-masjid.jpg') }}" class="h-8" alt="Logo">
+            <span class="font-bold text-lg">Masjid Besar Al-Istiqomah</span>
+        </a>
+
+        {{-- Menu --}}
+        <div class="flex items-center gap-6">
+            <a href="{{ route('front.landing') }}" 
+                class="nav-link">Beranda</a>
+            <a href="{{ route('front.berita.index') }}" class="nav-link">Berita</a>
+            <a href="{{ route('front.laporan.index') }}" class="nav-link">LaporanKeuangan</a>
+            <a href="#footer" class="nav-link">Kontak</a>
+        </div>
+    </div>
+</nav>
+
+<style>
+.nav-link {
+    color: #333;
+    font-weight: 500;
+    padding: 6px 8px;
+}
+.nav-link:hover {
+    color: #0ea5e9;
+}
+</style>
+
+
+==================================================
+FILE: .\resources\views\layouts\public.blade.php
+==================================================
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Masjid Besar Al-Istiqomah </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <nav class="bg-white shadow-md">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="{{ route('front.landing') }}" class="font-bold text-xl text-indigo-600">
+                <img src="{{ asset('images/logo-masjid.jpg') }}" class="h-8" alt="Logo"
+            </a>
+            <div class="hidden md:flex space-x-6">
+                <a href="{{ route('front.landing') }}" class="text-gray-600 hover:text-indigo-600">Beranda</a>
+                <a href="{{ route('front.berita.index') }}" class="text-gray-600 hover:text-indigo-600">Berita</a>
+                <a href="{{ route('front.laporan.index') }}" class="text-gray-600 hover:text-indigo-600">Laporan Keuangan</a>
+                <a href="#" class="text-gray-600 hover:text-indigo-600">Kontak</a>
+            </div>
+            </div>
+    </nav>
+
+    <main class="container mx-auto p-8">
+        @yield('content')
+    </main>
+
+    <footer class="bg-white mt-12">
+        <div class="container mx-auto p-6 text-center text-gray-600">
+            <p>&copy; {{ date('Y') }} Sistem Informasi Masjid. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
 
 ==================================================
 FILE: .\routes\auth.php
@@ -9265,136 +8407,118 @@ FILE: .\routes\web.php
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
-use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PublicController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\BeritaController;
-use App\Http\Controllers\LaporanKeuanganController;
 use App\Http\Controllers\LaporanKeuanganPublikController;
 use App\Http\Controllers\MidtransController;
 use App\Http\Controllers\ZakatController;
-use App\Http\Controllers\Admin\GoldController;
-use App\Http\Controllers\Admin\GoldPriceController;
+use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\BeritaController;
+use App\Http\Controllers\BeritaPublikController;
+use App\Http\Controllers\LaporanKeuanganController;
 use App\Http\Controllers\Admin\DonasiController as AdminDonasiController;
+use App\Http\Controllers\Admin\GoldPriceController;
 
 /*
 |--------------------------------------------------------------------------
-| RUTE PUBLIK
+| RUTE PUBLIK (PENGUNJUNG)
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', [LandingController::class, 'index'])->name('home');
+// Halaman Utama & Berita & Donasi (Menggunakan Group Controller)
+Route::controller(PublicController::class)->group(function () {
+    Route::get('/', 'index')->name('front.landing');
+    
+    // Berita
+    Route::get('/berita', 'berita')->name('front.berita.index');
+    Route::get('/berita/{berita:slug}', 'showBerita')->name('front.berita.show');
 
-/*
-********LAPORAN KEUANGAN PUBLIK********
-*/
+    // Donasi
+    Route::get('/donasi', 'showDonasiForm')->name('front.donasi.create');
+    Route::post('/donasi', 'storeDonasi')->name('front.donasi.store');
+    Route::get('/donasi/cetak/{id}', 'cetak')->name('front.donasi.cetak');
+    Route::get('/donasi/finish', 'finish')->name('midtrans.finish');
+});
+
+// Laporan Keuangan Publik
 Route::get('/laporan', [LaporanKeuanganPublikController::class, 'index'])
-    ->name('laporan.index');
+    ->name('front.laporan.index');
 
-/*
-*******Berita Publik**************************************************************************
-*/ 
-Route::get('/berita', [PublicController::class, 'berita'])
-    ->name('berita.publik.index');
-
-Route::get('/berita/{berita:slug}', [PublicController::class, 'showBerita'])
-    ->name('berita.publik.show');
-
-/*
-*******DONASI*********************************************************************************
-*/
-
-Route::get('/donasi', [PublicController::class, 'showDonasiForm'])->name('donasi.create');
-Route::post('/donasi', [PublicController::class, 'storeDonasi'])->name('donasi.store');
-
-Route::get('/donasi/cetak/{id}', [PublicController::class, 'cetak'])
-    ->name('donasi.cetak');
-
-Route::get('/donasi/finish', [PublicController::class, 'finish'])
-    ->name('midtrans.finish');
-
+// Midtrans Webhook (Wajib bypass CSRF di bootstrap/app.php)
 Route::post('/midtrans/notification', [MidtransController::class, 'notification'])
     ->name('midtrans.notification')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
 /*
 |--------------------------------------------------------------------------
-| KALKULATOR ZAKAT
+| RUTE ZAKAT (KALKULATOR)
 |--------------------------------------------------------------------------
 */
-
-Route::get('/kalkulator-zakat', [ZakatController::class, 'index'])
-    ->name('zakat.index');
-
-Route::post('/kalkulator-zakat/hitung', [ZakatController::class, 'hitung'])
-    ->name('zakat.hitung');
-
-Route::post('/zakat/store', [ZakatController::class, 'store'])
-    ->name('zakat.store');
-
-Route::get('/zakat/store/manual', [ZakatController::class, 'storeManual'])
-    ->name('zakat.store.manual');
-
-Route::get('/zakat/finish', function (\Illuminate\Http\Request $request) {
-    session()->forget(['zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input']);
-    return view('zakat.sukses', ['result' => $request->all()]);
-})->name('zakat.finish');
+Route::controller(ZakatController::class)->name('zakat.')->group(function () {
+    Route::get('/kalkulator-zakat', 'index')->name('index');
+    Route::post('/kalkulator-zakat/hitung', 'hitung')->name('hitung');
+    Route::post('/zakat/store', 'store')->name('store');
+    Route::get('/zakat/store/manual', 'storeManual')->name('store.manual');
+    Route::post('/kalkulator-zakat/live', 'liveUpdate')->name('live');
+    
+    Route::get('/zakat/finish', function (\Illuminate\Http\Request $request) {
+        session()->forget(['zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input']);
+        return view('front.zakat.sukses', ['result' => $request->all()]);
+    })->name('finish');
+});
 
 /*
 |--------------------------------------------------------------------------
-| LIVE UPDATE ENDPOINT
+| ADMIN LOGIN
 |--------------------------------------------------------------------------
 */
-
-Route::post('/kalkulator-zakat/live', [ZakatController::class, 'liveUpdate'])
-    ->name('zakat.live');
-
+Route::controller(AuthController::class)->group(function () {
+    Route::get('/admin/login', 'showLoginForm')->name('admin.login');
+    Route::post('/admin/login', 'login')->name('admin.login.post');
+    Route::post('/admin/logout', 'logout')->name('admin.logout');
+});
 
 /*
 |--------------------------------------------------------------------------
-| ADMIN Login
+| ADMIN PANEL (Protected)
 |--------------------------------------------------------------------------
 */
-
-Route::get('/admin/login', [\App\Http\Controllers\Admin\AuthController::class, 'showLoginForm'])
-    ->name('admin.login');
-
-Route::post('/admin/login', [\App\Http\Controllers\Admin\AuthController::class, 'login'])
-    ->name('admin.login.post');
-
-Route::post('/admin/logout', [\App\Http\Controllers\Admin\AuthController::class, 'logout'])
-    ->name('admin.logout');
-
-
-
-/*
- * ADMIN PANEL (Auth + Role admin/bendahara)
- */
 Route::middleware(['auth', 'role:admin,bendahara', 'no.cache'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
 
         // Dashboard
-        Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])
-            ->name('dashboard');
+        Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-        // Berita
-        Route::resource('berita', BeritaController::class)
-            ->parameters(['berita' => 'berita']);
+        // Manajemen Berita
+        Route::resource('berita', BeritaController::class)->parameters(['berita' => 'berita']);
 
-        // Transaksi Keuangan
+        // Laporan Transaksi Keuangan
         Route::resource('transaksi', LaporanKeuanganController::class);
 
         // Laporan Donasi
-        Route::get('laporan-donasi', [AdminDonasiController::class, 'index'])->name('donasi.laporan');
-        Route::get('laporan-donasi/export', [AdminDonasiController::class, 'exportExcel'])->name('donasi.export');
-        Route::patch('donasi/{donasi}/status', [AdminDonasiController::class, 'setStatus'])->name('donasi.set-status');
+        Route::controller(AdminDonasiController::class)->prefix('laporan-donasi')->name('donasi.')->group(function() {
+            Route::get('/', 'index')->name('laporan');
+            Route::get('/export', 'exportExcel')->name('export');
+            Route::patch('/{donasi}/status', 'setStatus')->name('set-status');
+        });
 
-        // Harga emas
-        Route::get('/harga-emas', [GoldPriceController::class, 'index'])->name('harga-emas.index');
-        Route::post('/harga-emas/refresh', [GoldPriceController::class, 'refresh'])->name('harga-emas.refresh');
-        Route::get('/harga-emas/history', [GoldPriceController::class, 'history'])->name('harga-emas.history');
+        // Manajemen Zakat
+        Route::controller(\App\Http\Controllers\Admin\ZakatController::class)
+            ->prefix('zakat')
+            ->name('zakat.')
+            ->group(function() {
+                Route::get('/', 'index')->name('index');
+                Route::get('/export', 'exportExcel')->name('export');
+                Route::get('/{zakat}', 'show')->name('show');
+                Route::patch('/{zakat}/status', 'updateStatus')->name('update-status');
+            });
+
+        // Manajemen Harga Emas
+        Route::controller(GoldPriceController::class)->prefix('harga-emas')->name('harga-emas.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/refresh', 'refresh')->name('refresh');
+            Route::get('/history', 'history')->name('history');
+        });
     });
-
-//require __DIR__.'/auth.php';

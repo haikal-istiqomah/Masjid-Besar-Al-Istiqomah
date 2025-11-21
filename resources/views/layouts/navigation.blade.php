@@ -33,6 +33,11 @@
                     Donasi
                 </a>
 
+                <a href="{{ route('admin.zakat.index') }}"
+                   class="text-gray-700 hover:text-black {{ request()->routeIs('admin.zakat.*') ? 'font-bold' : '' }}">
+                    Zakat
+                </a>
+                
                 <a href="{{ route('admin.harga-emas.index') }}"
                    class="text-gray-700 hover:text-black {{ request()->routeIs('admin.harga-emas.*') ? 'font-bold' : '' }}">
                     Harga Emas

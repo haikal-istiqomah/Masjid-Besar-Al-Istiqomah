@@ -8,7 +8,7 @@
 
             <!-- FORM FILTER DAN SORTING -->
             <div class="mb-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-                <form action="{{ route('berita.publik.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <form action="{{ route('front.berita.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                     <div>
                         <label for="kategori" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Filter Kategori</label>
                         <select name="kategori" id="kategori" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-700 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500">
@@ -35,13 +35,13 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 @forelse ($semuaBerita as $berita)
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col">
-                        <a href="{{ route('berita.publik.show', $berita) }}">
+                        <a href="{{ route('front.berita.show', $berita) }}">
                             <img class="h-56 w-full object-cover" src="{{ $berita->gambar ? asset('storage/' . $berita->gambar) : '[https://placehold.co/600x400/e2e8f0/e2e8f0](https://placehold.co/600x400/e2e8f0/e2e8f0)' }}" alt="{{ $berita->judul }}">
                         </a>
                         <div class="p-6 flex-grow flex flex-col">
                             <div class="flex-grow">
                                 <p class="text-sm text-blue-500 dark:text-blue-400 font-semibold">{{ ucfirst($berita->kategori) }}</p>
-                                <a href="{{ route('berita.publik.show', $berita) }}" class="block mt-2">
+                                <a href="{{ route('front.berita.show', $berita) }}" class="block mt-2">
                                     <p class="text-xl font-semibold text-gray-900 dark:text-white hover:text-blue-600">{{ $berita->judul }}</p>
                                     <p class="mt-3 text-base text-gray-500 dark:text-gray-400">{{ Str::limit(strip_tags($berita->isi), 100) }}</p>
                                 </a>

@@ -11,7 +11,7 @@
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6 text-gray-900">
                     <h3 class="text-lg font-semibold mb-4">Filter Berdasarkan Tanggal</h3>
-                    <form action="{{ route('laporan.index') }}" method="GET" class="flex flex-col md:flex-row items-center gap-4">
+                    <form action="{{ route('front.laporan.index') }}" method="GET" class="flex flex-col md:flex-row items-center gap-4">
                         <div>
                             <label for="start_date" class="block text-sm font-medium text-gray-700">Tanggal Mulai</label>
                             <input type="date" name="start_date" id="start_date" value="{{ $startDate }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">

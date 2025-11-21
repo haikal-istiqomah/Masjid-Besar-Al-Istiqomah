@@ -30,7 +30,7 @@ class LaporanKeuanganPublikController extends Controller
         $saldo = $pemasukan - $pengeluaran;
 
         // 5. Kirim semua data, TERMASUK tanggal filter, ke view
-        return view('laporan.index', [
+        return view('front.laporan.index', [
             'transaksis' => $transaksis,
             'pemasukan' => $pemasukan,
             'pengeluaran' => $pengeluaran,

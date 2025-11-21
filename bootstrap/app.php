@@ -3,6 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Symfony\Component\HttpKernel\Exception\HttpException; // Tambahkan ini
+use Illuminate\Http\Request; // Tambahkan ini
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -11,17 +13,21 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Konfigurasi pengecualian CSRF
         $middleware->validateCsrfTokens(except: [
             '/midtrans/notification',
         ]);
-
-        // DAFTARKAN ALIAS MIDDLEWARE DI SINI
+        
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
-            'no.cache' => \App\Http\Middleware\NoCache::class, // <-- Baris ini yang kurang
+            'no.cache' => \App\Http\Middleware\NoCache::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // TAMBAHKAN KODE INI UNTUK MENANGANI ERROR 419
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() === 419) {
+                return redirect()->route('admin.login')
+                    ->withErrors(['email' => 'Sesi Anda telah berakhir. Silakan login kembali.']);
+            }
+        });
     })->create();

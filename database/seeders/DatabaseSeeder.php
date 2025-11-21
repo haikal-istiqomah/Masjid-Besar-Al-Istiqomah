@@ -13,12 +13,21 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Membuat 10 user contoh
-    \App\Models\User::factory(10)->create();
-    
-    // Memanggil PostSeeder untuk membuat 15 postingan
-    $this->call([
-        PostSeeder::class,
-    ]);
+        // 1. BUAT AKUN ADMIN (Penting agar tidak hilang saat reset)
+        \App\Models\User::create([
+            'name' => 'Admin',
+            'email' => '14alistiqomah@gmail.com',
+            'role' => 'admin', // Pastikan role-nya admin
+            'password' => bcrypt('adMlNn111'), // Password default
+            'email_verified_at' => now(),
+        ]);
+
+        // 2. Buat user dummy (jamaah biasa)
+        \App\Models\User::factory(10)->create();
+
+        // 3. Panggil Seeder Lain
+        $this->call([
+            ZakatParamSeeder::class, 
+        ]);
     }
 }

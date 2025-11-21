@@ -8,67 +8,88 @@ use App\Models\Transaksi;
 use App\Models\Donasi;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-
-
-// Tambahkan use statement untuk Midtrans
 use Midtrans\Config;
 use Midtrans\Snap;
 
 class PublicController extends Controller
 {
     /**
-     * Menampilkan halaman utama (homepage) website.
+     * Menampilkan halaman utama (Landing Page).
      */
     public function index()
     {
-        $beritas = Berita::latest('tanggal_publikasi')->take(3)->get();
+        // 1. Ambil Berita Terbaru (Slider & List)
+        $beritas = Berita::latest('tanggal_publikasi')->take(6)->get();
+
+        // 2. Hitung Saldo Akhir Keuangan
         $totalPemasukan = Transaksi::where('jenis', 'Pemasukan')->sum('jumlah');
         $totalPengeluaran = Transaksi::where('jenis', 'Pengeluaran')->sum('jumlah');
         $saldoAkhir = $totalPemasukan - $totalPengeluaran;
-        return view('landing', compact('beritas', 'saldoAkhir'));
+
+        // 3. Ringkasan Donasi
+        $donasiSummary = [
+            'total_terkumpul' => Donasi::where('status', 'success')->sum('jumlah'),
+            'jumlah_transaksi' => Donasi::where('status', 'success')->count(),
+        ];
+
+        // 4. Data Statis Masjid (Konfigurasi)
+        $masjid = [
+            'title' => 'Masjid Besar Al-Istiqomah',
+            'address' => "Jl. Gerbang Dayaku RT.06, Desa Loa Duri Ilir, Kecamatan Loa Janan, Kabupaten Kutai Kartanegara, Kalimantan Timur, 75391",
+            'email' => 'alistiqomah14@gmail.com',
+            'phone' => '0822 54589345',
+            'instagram' => 'https://www.instagram.com/masjid_besar_al_istiqomah0101',
+            'facebook' => 'https://www.facebook.com/share/19PUV8ekbp/',
+            'youtube' => 'https://youtube.com/@masjidbesaral-istiqomah6671',
+        ];
+
+        return view('front.landing', compact('beritas', 'saldoAkhir', 'donasiSummary', 'masjid'));
     }
 
     /**
-     * Menampilkan halaman daftar semua berita untuk publik.
+     * Menampilkan halaman daftar semua berita.
      */
     public function berita(Request $request)
     {
         $query = Berita::query();
+
         if ($request->filled('kategori')) {
             $query->where('kategori', $request->kategori);
         }
+
         $query->orderBy('tanggal_publikasi', $request->input('urutan', 'desc'));
+        
         $semuaBerita = $query->paginate(9)->withQueryString();
-        return view('public.berita.index', [
+
+        return view('front.berita.index', [
             'semuaBerita' => $semuaBerita
         ]);
     }
 
     /**
-     * Menampilkan halaman detail dari sebuah berita untuk publik.
+     * Menampilkan detail berita.
      */
     public function showBerita(Berita $berita)
     {
-        return view('public.berita.show', compact('berita'));
+        return view('front.berita.show', compact('berita'));
     }
 
     /**
-     * Menampilkan halaman form donasi untuk publik.
+     * Form Donasi.
      */
     public function showDonasiForm(Request $request)
     {
         if ($request->boolean('new')) {
-        session()->forget(['snap_token', 'order_id', 'success']);
+            session()->forget(['snap_token', 'order_id', 'success']);
         }
         return view('donasi.create');
     }
 
     /**
-     * Memproses donasi, menyimpannya, dan membuat transaksi di Midtrans.
+     * Proses Simpan Donasi & Midtrans.
      */
     public function storeDonasi(Request $request)
     {
-        // 1. Validasi data dari form, termasuk email
         $validated = $request->validate([
             'nama_donatur'  => 'required|string|max:255',
             'email'         => 'nullable|email',
@@ -76,24 +97,21 @@ class PublicController extends Controller
             'pesan'         => 'nullable|string',
         ]);
 
-        // 2. Buat record donasi di database kita terlebih dahulu
         $donasi = Donasi::create([
             'order_id' => 'DONASI-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5)),
             'nama_donatur' => $validated['nama_donatur'],
-            'email' => $validated['email'] ?? null, 
+            'email' => $validated['email'] ?? null,
             'jumlah' => $validated['jumlah'],
             'pesan' => $validated['pesan'] ?? null,
-            'status' => 'pending', // Status awal donasi
-            'payment_type' => null, // Filled from Webhok Midtrans
+            'status' => 'pending',
         ]);
 
-        // 3. Konfigurasi Midtrans menggunakan API Keys dari file .env
-        Config::$serverKey    = config('services.midtrans.server_key');
+        // Konfigurasi Midtrans
+        Config::$serverKey = config('services.midtrans.server_key');
         Config::$isProduction = (bool) config('services.midtrans.is_production');
-        Config::$isSanitized  = true;
-        Config::$is3ds        = true;
+        Config::$isSanitized = true;
+        Config::$is3ds = true;
 
-        // 4. Siapkan parameter yang akan dikirim ke Midtrans
         $params = [
             'transaction_details' => [
                 'order_id'     => $donasi->order_id,
@@ -103,41 +121,18 @@ class PublicController extends Controller
                 'first_name' => $donasi->nama_donatur,
                 'email'      => $donasi->email,
             ],
-            'enabled_payments' => [
-            // e-wallet & kartu
-            'credit_card', 'gopay', 'shopeepay', 'qris',
-            // VA & Mandiri Bill
-            'bank_transfer', 'bca_va', 'bni_va', 'bri_va', 'permata_va', 'other_va', 'echannel',
-            // Minimarket
-            'indomaret', 'alfamart',
-            ],
-            // (opsional) atur kadaluarsa VA/invoice
-            'expiry' => [
-                'start_time' => now()->format('Y-m-d H:i:s O'),
-                'unit'       => 'days',     // 'minutes' | 'hours' | 'days'
-                'duration'   => 1,
-            ],
-
-            // (opsional) pakai Finish URL dari .env
-            'callbacks' => [
-                'finish' => config('services.midtrans.finish_url'),  // MIDTRANS_FINISH_URL
-            ],
-
-            // 'item_details' => (opsional) customer_details/item_details
         ];
 
         try {
-            // 5. Minta "Snap Token" (token pembayaran) dari Midtrans
             $snapToken = Snap::getSnapToken($params);
-
-           // 6) Kembali ke form, trigger popup via session('snap_token')
+            
             return redirect()
                 ->route('donasi.create')
                 ->with('order_id', $donasi->order_id)
                 ->with('success', 'Donasi berhasil dibuat. Silakan selesaikan pembayaran.')
                 ->with('snap_token', $snapToken);
+
         } catch (\Throwable $e) {
-            report($e);
             return back()
                 ->withErrors('Gagal membuat transaksi: '.$e->getMessage())
                 ->withInput();
@@ -145,40 +140,31 @@ class PublicController extends Controller
     }
 
     /**
-     * Menampilkan halaman "finish" (terima kasih) setelah redirect dari Midtrans.
+     * Halaman Finish setelah bayar.
      */
     public function finish(Request $request)
     {
-        // Ambil order_id dari URL (dikirim Midtrans setelah transaksi)
         $orderId = $request->query('order_id');
+        $donasi = Donasi::where('order_id', $orderId)->first();
 
-        // Cari data donasi berdasarkan order_id
-        $donasi = \App\Models\Donasi::where('order_id', $orderId)->first();
-
-        // Jika data tidak ditemukan, kembalikan ke halaman donasi
         if (!$donasi) {
             return redirect()->route('donasi.create')
-                ->with('error', 'Data donasi tidak ditemukan atau belum diproses.');
+                ->with('error', 'Data donasi tidak ditemukan.');
         }
 
-        // Tambahkan pesan flash
-        session()->flash('success', 'Terima kasih! Donasi Anda telah berhasil diproses.');
-
-        // Kirim data ke view sukses.blade.php
-        return view('donasi.sukses', compact('donasi'));
+        session()->flash('success', 'Terima kasih! Transaksi sedang diproses.');
+        return view('front.donasi.sukses', compact('donasi'));
     }
 
     /**
-     * Mencetak struk donasi dalam format PDF.
+     * Cetak PDF Bukti Donasi.
      */
     public function cetak($id)
     {
-        $donasi = \App\Models\Donasi::findOrFail($id);
-
-        $pdf = Pdf::loadView('donasi.bukti', compact('donasi'))
+        $donasi = Donasi::findOrFail($id);
+        $pdf = Pdf::loadView('front.donasi.bukti', compact('donasi'))
             ->setPaper('A5', 'portrait');
 
         return $pdf->download('Bukti-Donasi-'.$donasi->order_id.'.pdf');
     }
-
 }

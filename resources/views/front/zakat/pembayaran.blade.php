@@ -22,7 +22,7 @@
       window.snap.pay('{{ $snapToken }}', {
         onSuccess: function(result){
           console.log('Pembayaran sukses:', result);
-          // ✅ redirect ke halaman sukses zakat
+          //  redirect ke halaman sukses zakat
           window.location.href = "/zakat/finish?" + new URLSearchParams(result).toString();
         },
         onPending: function(result){

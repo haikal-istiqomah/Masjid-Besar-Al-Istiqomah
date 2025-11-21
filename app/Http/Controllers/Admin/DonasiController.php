@@ -48,7 +48,7 @@ class DonasiController extends Controller
         $orderId = $request->query('order_id');
         $donasi = Donasi::where('order_id', $orderId)->first();
     
-        return view('donasi.sukses', compact('donasi'));
+        return view('front.donasi.sukses', compact('donasi'));
     }
 
 }

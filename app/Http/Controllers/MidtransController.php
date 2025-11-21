@@ -129,7 +129,7 @@ class MidtransController extends Controller
 
     public function finish(Request $request)
     {
-        return view('donasi.finish', ['result' => $request->all()]);
+        return view('front.donasi.sukses', ['result' => $request->all()]);
     }
 
     // Helper untuk membuat snap token (dipanggil dari ZakatController)

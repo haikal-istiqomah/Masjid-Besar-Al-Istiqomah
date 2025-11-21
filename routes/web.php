@@ -2,136 +2,117 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
-use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PublicController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\BeritaController;
-use App\Http\Controllers\LaporanKeuanganController;
 use App\Http\Controllers\LaporanKeuanganPublikController;
 use App\Http\Controllers\MidtransController;
 use App\Http\Controllers\ZakatController;
-use App\Http\Controllers\Admin\GoldController;
-use App\Http\Controllers\Admin\GoldPriceController;
+use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\BeritaController;
+use App\Http\Controllers\LaporanKeuanganController;
 use App\Http\Controllers\Admin\DonasiController as AdminDonasiController;
+use App\Http\Controllers\Admin\GoldPriceController;
 
 /*
 |--------------------------------------------------------------------------
-| RUTE PUBLIK
+| RUTE PUBLIK (PENGUNJUNG)
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', [LandingController::class, 'index'])->name('home');
+// Halaman Utama & Berita & Donasi (Menggunakan Group Controller)
+Route::controller(PublicController::class)->group(function () {
+    Route::get('/', 'index')->name('front.landing');
+    
+    // Berita
+    Route::get('/berita', 'berita')->name('front.berita.index');
+    Route::get('/berita/{berita:slug}', 'showBerita')->name('front.berita.show');
 
-/*
-********LAPORAN KEUANGAN PUBLIK********
-*/
+    // Donasi
+    Route::get('/donasi', 'showDonasiForm')->name('donasi.create');
+    Route::post('/donasi', 'storeDonasi')->name('donasi.store');
+    Route::get('/donasi/cetak/{id}', 'cetak')->name('donasi.cetak');
+    Route::get('/donasi/finish', 'finish')->name('midtrans.finish');
+});
+
+// Laporan Keuangan Publik
 Route::get('/laporan', [LaporanKeuanganPublikController::class, 'index'])
-    ->name('laporan.index');
+    ->name('front.laporan.index');
 
-/*
-*******Berita Publik**************************************************************************
-*/ 
-Route::get('/berita', [PublicController::class, 'berita'])
-    ->name('berita.publik.index');
-
-Route::get('/berita/{berita:slug}', [PublicController::class, 'showBerita'])
-    ->name('berita.publik.show');
-
-/*
-*******DONASI*********************************************************************************
-*/
-
-Route::get('/donasi', [PublicController::class, 'showDonasiForm'])->name('donasi.create');
-Route::post('/donasi', [PublicController::class, 'storeDonasi'])->name('donasi.store');
-
-Route::get('/donasi/cetak/{id}', [PublicController::class, 'cetak'])
-    ->name('donasi.cetak');
-
-Route::get('/donasi/finish', [PublicController::class, 'finish'])
-    ->name('midtrans.finish');
-
+// Midtrans Webhook (Wajib bypass CSRF di bootstrap/app.php)
 Route::post('/midtrans/notification', [MidtransController::class, 'notification'])
     ->name('midtrans.notification')
     ->withoutMiddleware([VerifyCsrfToken::class]);
 
 /*
 |--------------------------------------------------------------------------
-| KALKULATOR ZAKAT
+| RUTE ZAKAT (KALKULATOR)
 |--------------------------------------------------------------------------
 */
-
-Route::get('/kalkulator-zakat', [ZakatController::class, 'index'])
-    ->name('zakat.index');
-
-Route::post('/kalkulator-zakat/hitung', [ZakatController::class, 'hitung'])
-    ->name('zakat.hitung');
-
-Route::post('/zakat/store', [ZakatController::class, 'store'])
-    ->name('zakat.store');
-
-Route::get('/zakat/store/manual', [ZakatController::class, 'storeManual'])
-    ->name('zakat.store.manual');
-
-Route::get('/zakat/finish', function (\Illuminate\Http\Request $request) {
-    session()->forget(['zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input']);
-    return view('zakat.sukses', ['result' => $request->all()]);
-})->name('zakat.finish');
+Route::controller(ZakatController::class)->name('zakat.')->group(function () {
+    Route::get('/kalkulator-zakat', 'index')->name('index');
+    Route::post('/kalkulator-zakat/hitung', 'hitung')->name('hitung');
+    Route::post('/zakat/store', 'store')->name('store');
+    Route::get('/zakat/store/manual', 'storeManual')->name('store.manual');
+    Route::post('/kalkulator-zakat/live', 'liveUpdate')->name('live');
+    
+    Route::get('/zakat/finish', function (\Illuminate\Http\Request $request) {
+        session()->forget(['zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input']);
+        return view('front.zakat.sukses', ['result' => $request->all()]);
+    })->name('finish');
+});
 
 /*
 |--------------------------------------------------------------------------
-| LIVE UPDATE ENDPOINT
+| ADMIN LOGIN
 |--------------------------------------------------------------------------
 */
-
-Route::post('/kalkulator-zakat/live', [ZakatController::class, 'liveUpdate'])
-    ->name('zakat.live');
-
+Route::controller(AuthController::class)->group(function () {
+    Route::get('/admin/login', 'showLoginForm')->name('admin.login');
+    Route::post('/admin/login', 'login')->name('admin.login.post');
+    Route::post('/admin/logout', 'logout')->name('admin.logout');
+});
 
 /*
 |--------------------------------------------------------------------------
-| ADMIN Login
+| ADMIN PANEL (Protected)
 |--------------------------------------------------------------------------
 */
-
-Route::get('/admin/login', [\App\Http\Controllers\Admin\AuthController::class, 'showLoginForm'])
-    ->name('admin.login');
-
-Route::post('/admin/login', [\App\Http\Controllers\Admin\AuthController::class, 'login'])
-    ->name('admin.login.post');
-
-Route::post('/admin/logout', [\App\Http\Controllers\Admin\AuthController::class, 'logout'])
-    ->name('admin.logout');
-
-
-
-/*
- * ADMIN PANEL (Auth + Role admin/bendahara)
- */
 Route::middleware(['auth', 'role:admin,bendahara', 'no.cache'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
 
         // Dashboard
-        Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])
-            ->name('dashboard');
+        Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-        // Berita
-        Route::resource('berita', BeritaController::class)
-            ->parameters(['berita' => 'berita']);
+        // Manajemen Berita
+        Route::resource('berita', BeritaController::class)->parameters(['berita' => 'berita']);
 
-        // Transaksi Keuangan
+        // Laporan Transaksi Keuangan
         Route::resource('transaksi', LaporanKeuanganController::class);
 
         // Laporan Donasi
-        Route::get('laporan-donasi', [AdminDonasiController::class, 'index'])->name('donasi.laporan');
-        Route::get('laporan-donasi/export', [AdminDonasiController::class, 'exportExcel'])->name('donasi.export');
-        Route::patch('donasi/{donasi}/status', [AdminDonasiController::class, 'setStatus'])->name('donasi.set-status');
+        Route::controller(AdminDonasiController::class)->prefix('laporan-donasi')->name('donasi.')->group(function() {
+            Route::get('/', 'index')->name('laporan');
+            Route::get('/export', 'exportExcel')->name('export');
+            Route::patch('/{donasi}/status', 'setStatus')->name('set-status');
+        });
 
-        // Harga emas
-        Route::get('/harga-emas', [GoldPriceController::class, 'index'])->name('harga-emas.index');
-        Route::post('/harga-emas/refresh', [GoldPriceController::class, 'refresh'])->name('harga-emas.refresh');
-        Route::get('/harga-emas/history', [GoldPriceController::class, 'history'])->name('harga-emas.history');
+        // Manajemen Zakat
+        Route::controller(\App\Http\Controllers\Admin\ZakatController::class)
+            ->prefix('zakat')
+            ->name('zakat.')
+            ->group(function() {
+                Route::get('/', 'index')->name('index');
+                Route::get('/export', 'exportExcel')->name('export');
+                Route::get('/{zakat}', 'show')->name('show');
+                Route::patch('/{zakat}/status', 'updateStatus')->name('update-status');
+            });
+
+        // Manajemen Harga Emas
+        Route::controller(GoldPriceController::class)->prefix('harga-emas')->name('harga-emas.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/refresh', 'refresh')->name('refresh');
+            Route::get('/history', 'history')->name('history');
+        });
     });
-
-//require __DIR__.'/auth.php';

@@ -23,7 +23,7 @@ class ZakatController extends Controller
             session()->forget('success');
         }
 
-        return view('zakat.kalkulator', [
+        return view('front.zakat.kalkulator', [
             'regions' => $regions,
             'goldPriceInit' => $goldPriceInit,
         ]);
@@ -184,7 +184,7 @@ class ZakatController extends Controller
             'zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input'
         ]);
 
-        return view('zakat.pembayaran', compact('zakat', 'snapToken'));
+        return view('front.zakat.pembayaran', compact('zakat', 'snapToken'));
     }
 
     // ================================
@@ -217,7 +217,7 @@ class ZakatController extends Controller
             'zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input'
         ]);
 
-        return view('zakat.pembayaran', compact('zakat', 'snapToken'));
+        return view('front.zakat.pembayaran', compact('zakat', 'snapToken'));
     }
 
     // ================================

@@ -73,7 +73,7 @@
 
             <div id="profesi_manual" class="hidden mt-3">
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-              <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100000" value="">
+              <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
               <div class="mt-2">
                 <button id="bayar_langsung_profesi" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
               </div>
@@ -95,7 +95,7 @@
 
             <div>
               <label class="block mb-1 font-medium">Jumlah Harta (Rp)</label>
-              <input id="harta_maal" name="harta" type="text" class="border rounded p-2 w-full rupiah" inputmode="numeric" value="{{ session('zakat_input.harta') ?? '' }}">
+              <input id="harta_maal" name="harta" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100.000.000" inputmode="numeric" value="{{ session('zakat_input.harta') ?? '' }}">
             </div>
 
             <div>
@@ -122,7 +122,7 @@
 
             <div id="maal_manual" class="hidden mt-3">
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-              <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100000" value="">
+              <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
               <div class="mt-2">
                 <button id="bayar_langsung_maal" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
               </div>
@@ -142,7 +142,7 @@
 
           <div>
             <label class="block mb-1 font-medium">Modal yang Dijalankan (Rp)</label>
-            <input id="modal_perniagaan" name="modal" type="text" class="border rounded p-2 w-full rupiah" inputmode="numeric" value="{{ session('zakat_input.modal') ?? '' }}">
+            <input id="modal_perniagaan" name="modal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh:75.000.000" inputmode="numeric" value="{{ session('zakat_input.modal') ?? '' }}">
           </div>
 
           <div>
@@ -179,7 +179,7 @@
 
           <div id="perniagaan_manual" class="hidden mt-3">
             <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-            <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 100000" value="">
+            <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
             <div class="mt-2">
               <button id="bayar_langsung_perniagaan" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
             </div>

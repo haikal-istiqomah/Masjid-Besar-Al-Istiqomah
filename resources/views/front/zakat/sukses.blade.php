@@ -28,7 +28,7 @@
 
     <div class="mt-8 flex justify-center gap-3">
       <a href="{{ route('zakat.index') }}" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Kembali ke Kalkulator</a>
-      <a href="{{ route('home') }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Beranda</a>
+      <a href="{{ route('front.landing') }}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">Beranda</a>
     </div>
   </div>
 </x-guest-layout>
