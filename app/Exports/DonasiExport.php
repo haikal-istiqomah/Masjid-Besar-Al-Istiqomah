@@ -20,16 +20,29 @@ class DonasiExport implements FromCollection, WithHeadings, WithMapping
     /**
     * @return \Illuminate\Support\Collection
     */
+
     public function collection()
     {
         // Logika query ini SAMA PERSIS dengan di controller,
         // agar data yang diekspor sesuai dengan yang difilter.
         $query = Donasi::query();
 
+        //Filter tanggal
         if ($this->request->filled('tanggal_mulai') && $this->request->filled('tanggal_akhir')) {
-            $tanggalMulai = $this->request->tanggal_mulai;
-            $tanggalAkhir = $this->request->tanggal_akhir;
-            $query->whereBetween('created_at', [$tanggalMulai . ' 00:00:00', $tanggalAkhir . ' 23:59:59']);
+            $query->whereBetween('created_at', [
+                $this->request->tanggal_mulai . ' 00:00:00', 
+                $this->request->tanggal_akhir . ' 23:59:59'
+            ]);
+        }
+
+        // Filter Status
+        if ($this->request->filled('status')) {
+            $query->where('status', $this->request->status);
+        }
+
+        // Filter Metode Pembayaran
+        if ($this->request->filled('payment_type')) {
+            $query->where('payment_type', $this->request->payment_type);
         }
 
         return $query->latest()->get();

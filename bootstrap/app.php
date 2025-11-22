@@ -21,6 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'no.cache' => \App\Http\Middleware\NoCache::class,
         ]);
+
+        // Mengarahkan user yang belum login ke halaman admin login
+        $middleware->redirectGuestsTo(function (Request $request) {
+            return route('admin.login');
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // TAMBAHKAN KODE INI UNTUK MENANGANI ERROR 419

@@ -18,7 +18,6 @@
                 Selamat Datang di Website Resmi
             </span>
             <h1 class="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-6 leading-tight">
-                Masjid Besar <br>
                 <span class="text-yellow-400">{{ $masjid['title'] ?? 'Al-Istiqomah' }}</span>
             </h1>
             <p class="text-lg md:text-xl text-gray-300 mb-8 leading-relaxed max-w-2xl">
@@ -44,7 +43,7 @@
         <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-green-600">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="font-bold text-xl text-gray-800 flex items-center gap-2">
-                    <span>🕌</span> Jadwal Sholat
+                    Jadwal Sholat
                 </h3>
                 <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-mono" id="hijri-date">...</span>
             </div>

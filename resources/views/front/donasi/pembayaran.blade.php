@@ -1,5 +1,5 @@
 <x-guest-layout>
-    {{-- 1. Memuat library JavaScript Midtrans Snap dari CDN (lingkungan Sandbox) --}}
+    {{--  Memuat library JavaScript Midtrans Snap dari CDN (lingkungan Sandbox) --}}
     <script type="text/javascript"
             src="https://app.sandbox.midtrans.com/snap/snap.js"
             data-client-key="{{ config('midtrans.client_key') }}"></script>
@@ -48,7 +48,7 @@
           onClose: function(){
             /* Jika pengguna menutup pop-up tanpa menyelesaikan pembayaran */
              console.log("Popup Snap ditutup oleh pengguna tanpa menyelesaikan transaksi.");
-            // ✅ Ini mencegah redirect aneh dan cukup refresh form
+            // mencegah redirect aneh dan cukup refresh form
             window.location.reload();
           }
         })

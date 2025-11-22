@@ -75,7 +75,8 @@
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
               <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
               <div class="mt-2">
-                <button id="bayar_langsung_profesi" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
+                <h2 class="text-xl font-semibold text-emerald-700 mb-3">Untuk Melanjutkan pembayaran,</h2>
+                <a class="text-md font-semibold"> Silakan klik tombol 'Bayar Zakat' di panel hasil perhitungan kanan/bawah. </a>
               </div>
             </div>
 
@@ -124,7 +125,8 @@
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
               <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
               <div class="mt-2">
-                <button id="bayar_langsung_maal" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
+                <h2 class="text-xl font-semibold text-emerald-700 mb-3">Untuk Melanjutkan pembayaran,</h2>
+                <a class="text-md font-semibold"> Silakan klik tombol 'Bayar Zakat' di panel hasil perhitungan kanan/bawah. </a>
               </div>
             </div>
           </form>
@@ -181,7 +183,8 @@
             <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
             <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
             <div class="mt-2">
-              <button id="bayar_langsung_perniagaan" class="bg-green-600 text-white px-4 py-2 rounded">Bayar Langsung</button>
+              <h2 class="text-xl font-semibold text-emerald-700 mb-3">Untuk Melanjutkan pembayaran,</h2>
+              <a class="text-md font-semibold"> Silakan klik tombol 'Bayar Zakat' di panel hasil perhitungan kanan/bawah. </a>
             </div>
           </div>
         </form>
@@ -271,7 +274,7 @@
       // strip formatting before any programmatic read (we read by toNumber helper)
     });
 
-    // show/hide beras input for profesi
+    // 
     const nisabProfesi = document.getElementById('nisab_profesi');
     const berasProfesiWrapper = document.getElementById('beras_profesi_wrapper');
     function toggleBerasProfesi(){
@@ -291,7 +294,7 @@
       });
     });
 
-    // live calculation functions
+    // live update kalkulasi zakat penghasilan / profesi
     function calculateProfesi(){
       const penghasilan = toNumber(document.getElementById('penghasilan_profesi').value);
       const tambahan = toNumber(document.getElementById('tambahan_profesi').value);
@@ -304,39 +307,50 @@
       const manualChecked = document.getElementById('profesi_manual_checkbox').checked;
       const manualVal = toNumber(document.getElementById('manual_jumlah_profesi')?.value || '');
 
-      let total = (penghasilan + tambahan - pengeluaran) * bulan;
-      if (total < 0) total = 0;
+        // Nisab 
+          let total = (penghasilan + tambahan - pengeluaran) * bulan;
+          if (total < 0) total = 0;
 
-      let nisab = 0;
-      let dasarText = '';
-      if (metode === 'emas') {
-        nisab = (85 * hargaEmasPerGram) / 12; // monthly threshold (kept consistent)
-        dasarText = `Nisab emas 85gr (Rp ${fmtRupiah(hargaEmasPerGram)}/gr) — per bulan`;
-      } else {
-        nisab = hargaBeras * 522;
-        dasarText = `Nisab beras 522 kg (Rp ${fmtRupiah(hargaBeras)}/kg per tahun)`;
-      }
+          let nisab = 0;
+          let dasarText = '';
 
-      let wajib = false;
-      if (total >= nisab) wajib = true;
+          if (metode === 'emas') {
+            nisab = (85 * hargaEmasPerGram) / 12; // monthly threshold (kept consistent)
+            dasarText = `Nisab emas 85gr (Rp ${fmtRupiah(hargaEmasPerGram)}/gr) — per bulan`;
+          } else {
+            // LOGIKA BERAS: 522 kg setara gabah/beras per panen (atau setara per bulan untuk profesi qiyas)
+            // Kita asumsikan input harga beras per Kg.
+            nisab = hargaBeras * 522;
+            dasarText = `Nisab beras 522 kg (Rp ${fmtRupiah(hargaBeras)}/kg per tahun)`;
+          }
 
-      let hasil = 0;
-      if (manualChecked && manualVal > 0) {
-        hasil = manualVal;
-      } else {
-        if (wajib) hasil = Math.round(total * 0.025);
-      }
+          // Penentu wajib zakat
+          let wajib = false; 
+          // Jika penghasilan > nisab (baik itu nisab emas atau beras), maka wajib.
+          if (total >= nisab) wajib = true;
 
-      // update UI and save
-      updateResultPanel('profesi', dasarText, total, nisab, wajib, hasil);
-      saveLiveSession({
-        jenis: 'profesi',
-        total, nisab, metode,
-        hargaEmasPerGram, hargaBeras,
-        hasil
-      });
+          // PERHITUNGAN NOMINAL 
+          let hasil = 0;
+          if (manualChecked && manualVal > 0) {
+            hasil = manualVal;
+          } else {
+            if (wajib) {
+              // Zakat profesi tetap 2.5% dari total penghasilan, kedua metode nisab
+              hasil = Math.round(total * 0.025);
+            }
+          }
+
+          // update UI and save
+          updateResultPanel('profesi', dasarText, total, nisab, wajib, hasil);
+          saveLiveSession({
+            jenis: 'profesi',
+            total, nisab, metode,
+            hargaEmasPerGram, hargaBeras,
+            hasil
+          });
     }
 
+    // live update kalkulasi dan logika kalkulasi zakat maal
     function calculateMaal(){
       const harta = toNumber(document.getElementById('harta_maal')?.value || '');
       const uang = toNumber(document.getElementById('uang_maal')?.value || '');
@@ -360,6 +374,7 @@
       saveLiveSession({ jenis: 'maal', total, nisab, hasil, hargaEmasPerGram });
     }
 
+    // live update kalkulasi dan logika kalkulasi zakat perniagaan
     function calculatePerniagaan(){
       const modal = toNumber(document.getElementById('modal_perniagaan')?.value || '');
       const pendapatan = toNumber(document.getElementById('pendapatan_perniagaan')?.value || '');

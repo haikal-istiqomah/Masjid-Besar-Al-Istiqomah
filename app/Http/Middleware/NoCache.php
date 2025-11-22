@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class NoCache
 {
@@ -10,13 +12,12 @@ class NoCache
     {
         $response = $next($request);
 
-        // 1. Cek jika response adalah download file (Binary atau Streamed)
-        // Jika iya, langsung kembalikan response tanpa utak-atik header cache
+        // JANGAN tambahkan header cache jika responnya adalah download file (Excel/PDF/Gambar)
         if ($response instanceof BinaryFileResponse || $response instanceof StreamedResponse) {
             return $response;
         }
-        // 2. Pastikan response memiliki method 'header' sebelum memanggilnya
-        // (Ini pengaman tambahan agar tidak pernah error undefined method)
+
+        // Hanya tambahkan header jika method header() tersedia
         if (method_exists($response, 'header')) {
             $response->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                      ->header('Pragma', 'no-cache')

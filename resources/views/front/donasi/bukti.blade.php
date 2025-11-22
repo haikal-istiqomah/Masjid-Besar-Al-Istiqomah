@@ -15,7 +15,7 @@
 <body>
     <div class="header">
         <h2>Bukti Donasi Masjid Besar Al-Istiqomah</h2>
-        <p>Terima kasih atas kebaikan Anda 🙏</p>
+        <p>Terima kasih atas kebaikan Anda</p>
     </div>
 
     <div class="detail">

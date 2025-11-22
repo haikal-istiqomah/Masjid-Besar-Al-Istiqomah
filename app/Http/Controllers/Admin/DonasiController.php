@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Donasi;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\DonasiExport;
 
 class DonasiController extends Controller
 {
@@ -51,4 +53,8 @@ class DonasiController extends Controller
         return view('front.donasi.sukses', compact('donasi'));
     }
 
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(new DonasiExport($request), 'Laporan-Donasi-' . now()->format('Y-m-d') . '.xlsx');
+    }
 }

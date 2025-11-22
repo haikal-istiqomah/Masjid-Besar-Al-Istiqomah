@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\GoldPriceController;
 // Halaman Utama & Berita & Donasi (Menggunakan Group Controller)
 Route::controller(PublicController::class)->group(function () {
     Route::get('/', 'index')->name('front.landing');
+    Route::view('/layanan', 'front.layanan-lain')->name('front.layanan');
     
     // Berita
     Route::get('/berita', 'berita')->name('front.berita.index');
@@ -89,7 +90,7 @@ Route::middleware(['auth', 'role:admin,bendahara', 'no.cache'])
         Route::resource('berita', BeritaController::class)->parameters(['berita' => 'berita']);
 
         // Laporan Transaksi Keuangan
-        Route::resource('transaksi', LaporanKeuanganController::class);
+        Route::resource('transaksi', LaporanKeuanganController::class)->parameters(['transaksi' => 'transaksi']);
 
         // Laporan Donasi
         Route::controller(AdminDonasiController::class)->prefix('laporan-donasi')->name('donasi.')->group(function() {

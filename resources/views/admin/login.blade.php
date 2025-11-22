@@ -44,7 +44,7 @@
                 @csrf
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Pengurus</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email DKM</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -82,7 +82,7 @@ class PublicController extends Controller
         if ($request->boolean('new')) {
             session()->forget(['snap_token', 'order_id', 'success']);
         }
-        return view('donasi.create');
+        return view('front.donasi.create');
     }
 
     /**
