@@ -25,10 +25,22 @@ class GoldPriceController extends Controller
         Cache::put('gold_price_last_update', now());
         return back()->with('success', 'Harga emas berhasil diperbarui: Rp ' . number_format($hargaBaru, 0, ',', '.'));
     }
-
+    
     public function history()
     {
         $histories = GoldPriceHistory::latest()->take(30)->get();
         return view('admin.harga-emas-history', compact('histories'));
+    }
+
+    // Tambahkan method ini
+    public function update(Request $request, GoldPriceService $goldService)
+    {
+        $request->validate([
+            'price' => 'required|numeric|min:1000',
+        ]);
+
+        $goldService->setManualPrice($request->price);
+
+        return back()->with('success', 'Harga emas berhasil diperbarui secara manual.');
     }
 }

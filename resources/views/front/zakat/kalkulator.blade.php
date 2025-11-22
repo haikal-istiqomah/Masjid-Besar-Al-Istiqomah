@@ -31,6 +31,11 @@
             </div>
 
             <div>
+              <label class="block mb-1 font-medium">Email (Wajib untuk bukti transaksi)</label>
+              <input id="email_profesi" name="email" type="email" class="border rounded p-2 w-full" placeholder="email@contoh.com" value="{{ session('zakat_input.email') ?? '' }}">
+            </div>
+
+            <div>
               <label class="block mb-1 font-medium">Penghasilan Bulanan (Rp)</label>
               <input id="penghasilan_profesi" name="penghasilan" type="text" class="border rounded p-2 w-full rupiah" inputmode="numeric" placeholder="Contoh: 5.000.000" value="{{ session('zakat_input.penghasilan') ?? '' }}">
             </div>
@@ -73,7 +78,7 @@
 
             <div id="profesi_manual" class="hidden mt-3">
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-              <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
+              <input id="manual_jumlah_profesi" name="manual_jumlah_profesi" type="text" class="border rounded p-2 w-full rupiah" placeholder="Rp." value="">
               <div class="mt-2">
                 <h2 class="text-xl font-semibold text-emerald-700 mb-3">Untuk Melanjutkan pembayaran,</h2>
                 <a class="text-md font-semibold"> Silakan klik tombol 'Bayar Zakat' di panel hasil perhitungan kanan/bawah. </a>
@@ -93,6 +98,16 @@
           <form id="form-maal" class="space-y-4" onsubmit="return false;">
             @csrf
             <input type="hidden" name="jenis" value="maal">
+          
+            <div>
+              <label class="block mb-1 font-medium">Nama (opsional)</label>
+              <input id="nama_profesi" name="nama" type="text" class="border rounded p-2 w-full" placeholder="Contoh: Zayad Habihulloh " value="{{ session('zakat_input.nama') ?? '' }}">
+            </div>
+
+            <div>
+              <label class="block mb-1 font-medium">Email (Wajib untuk bukti transaksi)</label>
+              <input id="email_profesi" name="email" type="email" class="border rounded p-2 w-full" placeholder="email@contoh.com" value="{{ session('zakat_input.email') ?? '' }}">
+            </div>
 
             <div>
               <label class="block mb-1 font-medium">Jumlah Harta (Rp)</label>
@@ -123,7 +138,7 @@
 
             <div id="maal_manual" class="hidden mt-3">
               <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-              <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
+              <input id="manual_jumlah_maal" name="manual_jumlah_maal" type="text" class="border rounded p-2 w-full rupiah" placeholder="Rp." value="">
               <div class="mt-2">
                 <h2 class="text-xl font-semibold text-emerald-700 mb-3">Untuk Melanjutkan pembayaran,</h2>
                 <a class="text-md font-semibold"> Silakan klik tombol 'Bayar Zakat' di panel hasil perhitungan kanan/bawah. </a>
@@ -141,6 +156,16 @@
         <form id="form-perniagaan" class="space-y-4" onsubmit="return false;">
           @csrf
           <input type="hidden" name="jenis" value="perniagaan">
+
+          <div>
+              <label class="block mb-1 font-medium">Nama (opsional)</label>
+              <input id="nama_profesi" name="nama" type="text" class="border rounded p-2 w-full" placeholder="Contoh: Zayad Habihulloh " value="{{ session('zakat_input.nama') ?? '' }}">
+            </div>
+
+          <div>
+              <label class="block mb-1 font-medium">Email (Wajib untuk bukti transaksi)</label>
+              <input id="email_profesi" name="email" type="email" class="border rounded p-2 w-full" placeholder="email@contoh.com" value="{{ session('zakat_input.email') ?? '' }}">
+          </div>
 
           <div>
             <label class="block mb-1 font-medium">Modal yang Dijalankan (Rp)</label>
@@ -181,7 +206,7 @@
 
           <div id="perniagaan_manual" class="hidden mt-3">
             <label class="block mb-1 font-medium">Nominal Zakat (Rp)</label>
-            <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Contoh: 1.000.000" value="">
+            <input id="manual_jumlah_perniagaan" name="manual_jumlah_perniagaan" type="text" class="border rounded p-2 w-full rupiah" placeholder="Rp" value="">
             <div class="mt-2">
               <h2 class="text-xl font-semibold text-emerald-700 mb-3">Untuk Melanjutkan pembayaran,</h2>
               <a class="text-md font-semibold"> Silakan klik tombol 'Bayar Zakat' di panel hasil perhitungan kanan/bawah. </a>
@@ -221,6 +246,10 @@
                 @csrf
                 <input type="hidden" name="jenis" id="pay_jenis">
                 <input type="hidden" name="jumlah" id="pay_jumlah">
+                {{-- TAMBAHAN BARU --}}
+                <input type="hidden" name="nama" id="pay_nama">
+                <input type="hidden" name="email" id="pay_email">
+                
                 <button id="btnPay" class="bg-emerald-700 text-white px-6 py-2 rounded">Bayar Zakat</button>
               </form>
             </div>
@@ -414,11 +443,11 @@
     // attach realtime listeners
     [
       // profesi
-      'penghasilan_profesi','tambahan_profesi','pengeluaran_profesi','bulan_profesi','harga_beras_profesi','manual_jumlah_profesi',
+      'email_profesi','penghasilan_profesi','tambahan_profesi','pengeluaran_profesi','bulan_profesi','harga_beras_profesi','manual_jumlah_profesi',
       // maal
-      'harta_maal','uang_maal','lainnya_maal','hutang_maal','manual_jumlah_maal',
+      'email_maal','harta_maal','uang_maal','lainnya_maal','hutang_maal','manual_jumlah_maal',
       // perniagaan
-      'modal_perniagaan','pendapatan_perniagaan','barang_perniagaan','piutang_perniagaan','hutang_perniagaan','pengeluaran_perniagaan','manual_jumlah_perniagaan'
+      'email_perniagaan','modal_perniagaan','pendapatan_perniagaan','barang_perniagaan','piutang_perniagaan','hutang_perniagaan','pengeluaran_perniagaan','manual_jumlah_perniagaan'
     ].forEach(id=>{
       const el = document.getElementById(id);
       if (!el) return;
@@ -435,9 +464,19 @@
       document.getElementById('out_status').textContent = wajib ? 'Wajib zakat' : 'Belum wajib zakat';
       document.getElementById('out_jumlah').textContent = 'Rp ' + fmtRupiah(hasil);
 
-      // prepare pay form
+      // UPDATE KE FORM BAYAR (Agar data terkirim ke Controller)
       document.getElementById('pay_jenis').value = jenis;
       document.getElementById('pay_jumlah').value = hasil;
+      
+      // Ambil Nama & Email sesuai tab yang aktif
+      let namaInput = document.getElementById('nama_' + jenis)?.value || 'Hamba Allah';
+      let emailInput = document.getElementById('email_' + jenis)?.value || '';
+
+      document.getElementById('pay_nama').value = namaInput;
+      document.getElementById('pay_email').value = emailInput;
+
+      // Validasi sederhana: Tombol mati jika hasil 0 atau Email kosong (opsional, tapi disarankan)
+      // document.getElementById('btnPay').disabled = hasil <= 0 || emailInput === '';
       document.getElementById('btnPay').disabled = hasil <= 0;
     }
 

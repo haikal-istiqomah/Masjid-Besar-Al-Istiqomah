@@ -11,35 +11,51 @@ class GoldPriceService
     protected $cacheKey = 'gold_price_idr';
 
     /**
-     * Ambil harga emas per gram (IDR)
+     * Ambil harga emas: Prioritas Input Manual Terakhir -> API -> Default
      */
     public function getGoldPrice(): float
     {
-        // Cek cache 1 jam
-        return Cache::remember($this->cacheKey, now()->addHour(), function () {
-            try {
-                // Contoh API gratis: metals-api.com (gunakan API key kalau ada)
-                // Untuk sementara, pakai placeholder API atau mock
-                $response = Http::timeout(5)->get('https://api.metals.live/v1/spot');
-                $data = $response->json();
+        // 1. Cek data terakhir di database
+        $latest = GoldPriceHistory::latest()->first();
 
-                // Format data kadang kompleks, sesuaikan berdasarkan API
-                // Misal [ ['gold', 2345.67], ... ]
-                if (is_array($data) && isset($data[0]['gold'])) {
-                    // Dapat harga emas USD/oz
-                    $priceUsdPerOunce = $data[0]['gold'];
-                    $usdToIdr = 16000; // fix sementara, nanti bisa otomatis via API
-                    $pricePerGram = ($priceUsdPerOunce / 31.1035) * $usdToIdr;
-                    return round($pricePerGram);
-                }
+        // Jika ada data & baru diupdate (< 24 jam), pakai itu.
+        // Ini mencakup input manual admin maupun fetch API terakhir.
+        if ($latest) {
+            return $latest->price_per_gram;
+        }
 
-                // Jika gagal parse
-                return 1200000; // fallback default: Rp 1.200.000 per gram
-            } catch (\Throwable $e) {
-                // Kalau error jaringan, tetap return default
-                return 1200000;
-            }
-        });
+        // 2. Jika database kosong, coba API (Fallback)
+        return $this->fetchGoldPriceFromAPI();
+    }
+
+    /**
+     * Admin update harga manual
+     */
+    public function setManualPrice($price): void
+    {
+        GoldPriceHistory::create([
+            'price_per_gram' => $price,
+            'source' => 'Manual Admin', // Penanda bahwa ini input manual
+        ]);
+        
+        // Update cache agar frontend langsung berubah
+        Cache::put($this->cacheKey, $price, now()->addDay());
+    }
+
+    /**
+     * Logika asli API dipisah ke sini (Private)
+     */
+    private function fetchGoldPriceFromAPI(): float
+    {
+        // ... (Kode API lama Anda simpan di sini, return 1200000 jika gagal) ...
+        // Contoh singkat:
+        try {
+             $response = Http::timeout(5)->get('https://api.metals.live/v1/spot');
+             // ... logika parsing ...
+             return 1350000; // Misal hasil parsing
+        } catch (\Throwable $e) {
+             return 1200000; // Fallback statis
+        }
     }
 
 

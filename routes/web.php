@@ -115,5 +115,6 @@ Route::middleware(['auth', 'role:admin,bendahara', 'no.cache'])
             Route::get('/', 'index')->name('index');
             Route::post('/refresh', 'refresh')->name('refresh');
             Route::get('/history', 'history')->name('history');
+            Route::post('/update', 'update')->name('update'); // admin.harga-emas.update
         });
     });
