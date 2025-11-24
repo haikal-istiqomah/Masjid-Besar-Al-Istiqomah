@@ -18,15 +18,37 @@
             <h3 class="font-bold text-gray-700 mb-2">✏️ Update Manual</h3>
             <p class="text-xs text-gray-500 mb-4">Gunakan harga resmi Antam/Pasar hari ini.</p>
             
-            <form action="{{ route('admin.harga-emas.update') }}" method="POST">
+            <form action="{{ route('admin.harga-emas.update') }}" method="POST" id="manualGoldForm">
                 @csrf
                 <div class="mb-3">
-                    <input type="number" name="price" class="w-full border-gray-300 rounded-md" placeholder="Contoh: 1350000" inputmode="numeric" required>
+                    {{-- Input Tampilan (Format Rupiah) --}}
+                    <input type="text" id="display_price" class="w-full border-gray-300 rounded-md font-mono text-lg" placeholder="Contoh: 1.350.000" required>
+                    
+                    {{-- Input Asli (Hidden, Polos) --}}
+                    <input type="hidden" name="price" id="real_price">
                 </div>
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
                     Simpan Harga Manual
                 </button>
             </form>
+
+            <script>
+                const displayInput = document.getElementById('display_price');
+                const realInput = document.getElementById('real_price');
+
+                displayInput.addEventListener('input', function(e) {
+                    // Hapus karakter non-angka
+                    let val = this.value.replace(/[^0-9]/g, '');
+                    // Simpan nilai asli ke input hidden
+                    realInput.value = val;
+                    // Format tampilan dengan titik
+                    if(val) {
+                        this.value = new Intl.NumberFormat('id-ID').format(val);
+                    } else {
+                        this.value = '';
+                    }
+                });
+            </script>
         </div>
 
         {{-- CARD 2: UPDATE API (OPSIONAL) --}}

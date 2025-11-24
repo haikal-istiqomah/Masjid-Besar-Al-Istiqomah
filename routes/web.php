@@ -55,6 +55,7 @@ Route::controller(ZakatController::class)->name('zakat.')->group(function () {
     Route::post('/zakat/store', 'store')->name('store');
     Route::get('/zakat/store/manual', 'storeManual')->name('store.manual');
     Route::post('/kalkulator-zakat/live', 'liveUpdate')->name('live');
+    Route::get('/zakat/cetak/{id}', 'cetak')->name('cetak');
     
     Route::get('/zakat/finish', function (\Illuminate\Http\Request $request) {
         session()->forget(['zakat_hasil', 'zakat_jenis', 'zakat_nominal_perhitungan', 'zakat_input']);

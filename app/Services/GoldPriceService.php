@@ -63,7 +63,7 @@ class GoldPriceService
     public function refreshGoldPrice(): float
     {
         $newPrice = $this->fetchGoldPriceFromAPI(); // ambil dari API seperti sebelumnya
-        Cache::put('gold_price', $newPrice, now()->addHour());
+        $response = Http::timeout(2)->get('https://api.metals.live/v1/spot'); // Ubah timeout jadi 2
 
         // Simpan ke tabel riwayat
         GoldPriceHistory::create([

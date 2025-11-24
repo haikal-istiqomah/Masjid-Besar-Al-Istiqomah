@@ -6,6 +6,7 @@ use App\Models\Zakat;
 use App\Services\GoldPriceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ZakatController extends Controller
 {
@@ -150,7 +151,7 @@ class ZakatController extends Controller
     }
 
     // ================================
-    // STORE 
+    // FUNGSI STORE 
     // ================================
     public function store(Request $request)
     {
@@ -161,21 +162,27 @@ class ZakatController extends Controller
             'email' => 'nullable|email',
         ]);
 
+        $namaMuzakki = $request->nama ?: 'Hamba Allah';
+
         $orderId = 'ZAKAT-' . strtoupper($request->jenis) . '-' . now()->format('Ymd') . '-' . Str::upper(Str::random(6));
 
         $zakat = Zakat::create([
             'order_id' => $orderId,
-            'nama' => $request->nama,
+            'nama' => $namaMuzakki,
             'email' => $request->email,
             'jenis' => $request->jenis,
             'jumlah' => $request->jumlah,
             'nominal_perhitungan' => $request->nominal_perhitungan,
             'status' => 'pending',
         ]);
-
+        
         $midtrans = new \App\Http\Controllers\MidtransController;
+        
         $snapToken = $midtrans->createSnapTokenForOrder(
-            $orderId, $zakat->jumlah, $zakat->nama, $zakat->email
+            $orderId,
+             $zakat->jumlah,
+             $zakat->nama,
+             $zakat->email
         );
 
         $zakat->update(['midtrans_response' => ['snap_token' => $snapToken]]);
@@ -232,5 +239,20 @@ class ZakatController extends Controller
         }
 
         return response()->json(['status' => 'ok']);
+    }
+
+    public function cetak($id)
+    {
+        $zakat = Zakat::findOrFail($id);
+        
+        // Hanya bisa cetak jika sudah Lunas
+        if ($zakat->status != 'paid') {
+            return back()->with('error', 'Bukti hanya dapat dicetak untuk transaksi lunas.');
+        }
+
+        $pdf = Pdf::loadView('front.zakat.bukti', compact('zakat'))
+            ->setPaper('A5', 'portrait');
+
+        return $pdf->download('Bukti-Zakat-'.$zakat->order_id.'.pdf');
     }
 }
